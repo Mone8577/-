@@ -1,0 +1,6 @@
+{
+  "name": "漫剧工场 (MangaDrama Studio)",
+  "description": "SaaS 级 AIGC 漫剧生成、全网矩阵运营与产业撮合生态平台 (AIGC Manga & Short Drama Studio)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
