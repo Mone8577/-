@@ -1,85 +1,67 @@
-// Data models matching MangaDrama Studio specification and SQLAlchemy Schema
+// Data models for MangaDrama Studio (Seedance Native Multimodal & Sandbox Architecture)
 
 export type AspectRatio = "9:16" | "16:9" | "1:1";
-export type ProjectStatus = "draft" | "processing" | "completed";
-export type EpisodeStatus = "pending" | "rendering" | "ready";
+export type ProjectStatus = "draft" | "assets_locked" | "in_production" | "completed";
+export type EpisodeStatus = "pending" | "parsed" | "rendering" | "ready";
 export type ReviewerType = "publisher" | "creator" | "admin";
 export type AnnotationStatus = "open" | "resolved";
 export type PublishStatus = "pending" | "processing" | "published" | "failed";
 export type ScheduleType = "instant" | "scheduled";
 
+// 解耦服装变体卡
+export interface CharacterOutfit {
+  id: string;
+  name: string; // e.g. "常服-青色布衣", "战甲-九天玄金铠", "宴会-深黑长袍"
+  description: string;
+  ref_image_url?: string;
+  is_default?: boolean;
+}
+
+// 核心角色卡（面容与音色绑定）
 export interface ProjectCharacter {
   id: string;
   project_id: string;
   name: string;
   gender?: string;
   visual_description?: string;
-  ref_image_urls: string[];
-  ip_adapter_weight: number; // 0.65 - 0.80 default 0.75
+  ref_image_urls: string[]; // 面部/主立绘三视图
+  outfits?: CharacterOutfit[]; // 解耦服装变体
   voice_id?: string;
-  voice_name?: string;
+  voice_name?: string; // e.g. "CosyVoice-Seed #8821", "MiniMax-Drama-01"
+  voice_seed_param?: string;
   created_at: string;
 }
 
+// 场景资产卡
+export interface ProjectScene {
+  id: string;
+  project_id: string;
+  name: string; // e.g. "乌坦城萧家大厅", "魔兽山脉断崖", "现代豪华拍卖会"
+  description: string;
+  env_prompt: string;
+  ref_image_url?: string;
+  created_at: string;
+}
+
+// 三位一体分镜组 (Shot Block for Seedance 2.0 / 2.5)
 export interface Storyboard {
   id: string;
   episode_id: string;
   project_id: string;
   shot_number: number;
-  camera_movement?: "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "static" | "2.5d_tilt";
-  visual_prompt: string;
-  dialogue?: string;
+  camera_movement?: "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "static" | "2.5d_tilt" | "drone_orbit" | "dutch_angle";
+  visual_prompt: string; // 视觉画面 Prompt
+  dialogue?: string; // 角色对白/台词
   speaker_character_id?: string;
   speaker_character_name?: string;
-  image_url?: string;
-  audio_url?: string;
-  audio_duration: number; // seconds
-  video_motion_url?: string;
-  created_at: string;
-}
-
-// --- Pydantic API Schemas ---
-export interface ProjectCreate {
-  title: string;
-  description?: string;
-  aspect_ratio: AspectRatio;
-  style_preset?: string;
-  global_style_config?: Record<string, any>;
-}
-
-export interface ProjectResponse extends ProjectCreate {
-  id: string;
-  user_id: string;
-  status: ProjectStatus;
-  created_at: string;
-}
-
-export interface StoryboardGenerateRequest {
-  project_id: string;
-  episode_id: string;
-  raw_script_text: string;
-}
-
-export interface StoryboardItemSchema {
-  shot_number: number;
-  camera_movement: string;
-  visual_prompt: string;
-  dialogue?: string;
-  speaker_character_name?: string;
-}
-
-export interface VideoAnnotationCreate {
-  submission_id: string;
-  storyboard_id?: string;
-  time_code: number;
-  frame_number: number;
-  draw_data?: Record<string, any>;
-  comment_text: string;
-}
-
-export interface VideoAnnotationResponse extends VideoAnnotationCreate {
-  id: string;
-  status: AnnotationStatus | string;
+  outfit_id?: string;
+  scene_id?: string;
+  image_url?: string; // 生成的画格关键帧
+  audio_url?: string; // 原生音画音轨 URL
+  audio_duration: number; // 预估时长(秒)
+  video_motion_url?: string; // Seedance 原生生成的连贯音视频片段 (MP4)
+  render_engine?: "seedance_2.5" | "seedance_2.0" | "kling_1.5" | "flux_flash";
+  is_rendering?: boolean;
   created_at: string;
 }
 
@@ -89,10 +71,11 @@ export interface Episode {
   episode_number: number;
   title: string;
   raw_script?: string;
-  hook_point?: string; // Golden hook / climax description
+  hook_point?: string; // 黄金卡点 / 高潮与反转悬念钩子 (Hook Point)
   status: EpisodeStatus;
   created_at: string;
   storyboards: Storyboard[];
+  rendered_video_url?: string; // 全集合成视频流
 }
 
 export interface Project {
@@ -103,8 +86,10 @@ export interface Project {
   cover_url?: string;
   aspect_ratio: AspectRatio;
   style_preset?: string; // 'anime_2d', '3d_real', 'cyberpunk', 'xianxia'
+  is_assets_locked: boolean; // 中央控制层强制门禁状态 (Gatekeeper)
+  locked_at?: string;
   global_style_config: {
-    base_model: string;
+    base_model: string; // e.g. "Seedance 2.5 Multimodal Engine"
     style_lora: string;
     negative_prompt: string;
   };
@@ -112,6 +97,7 @@ export interface Project {
   created_at: string;
   updated_at: string;
   characters: ProjectCharacter[];
+  scenes?: ProjectScene[];
   episodes: Episode[];
 }
 
@@ -172,15 +158,6 @@ export interface PlatformAccount {
   status: "active" | "expired";
 }
 
-export interface CreditUsage {
-  id: string;
-  timestamp: string;
-  action: string;
-  model_used: string;
-  credits_spent: number;
-  project_title: string;
-}
-
 export interface UserCredit {
   user_id: string;
   balance: number;
@@ -199,18 +176,17 @@ export interface CreditLog {
 }
 
 export interface BoundingBox {
-  x: number; // 相对百分比 x (0~1)，保证跨分辨率一致性
+  x: number; // 相对百分比 x (0~1)
   y: number; // 相对百分比 y (0~1)
-  width: number; // 相对百分比宽度
-  height: number; // 相对百分比高度
+  width: number;
+  height: number;
 }
 
 export interface AnnotationMarker {
   id: string;
-  timestamp: number; // 视频时间戳（秒）
-  box: BoundingBox; // 圈画位置
-  comment: string; // 审片修改意见
-  author: string; // 审片员名字
+  timestamp: number;
+  box: BoundingBox;
+  comment: string;
+  author: string;
   createdAt: string;
 }
-

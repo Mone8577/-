@@ -9,21 +9,56 @@ import { MarketplaceView } from "./components/matchmaking/MarketplaceView";
 import { ComplianceCenter } from "./components/compliance/ComplianceCenter";
 import { AssetCenter } from "./components/assets/AssetCenter";
 import { ComputeDashboard } from "./components/compute/ComputeDashboard";
-import { Project, Episode, ProjectCharacter } from "./types";
+import { Project, Episode, ProjectCharacter, ProjectScene } from "./types";
+import {
+  Layers,
+  ShieldCheck,
+  Zap,
+  Sparkles,
+  ArrowRight,
+  FolderKanban,
+  CheckCircle2,
+  Film,
+  Lock,
+  ChevronRight,
+  FileCode2,
+  Unlock,
+} from "lucide-react";
+
+export type StudioStage = "script_lobby" | "central_control" | "episode_studio";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("studio");
+  const [studioStage, setStudioStage] = useState<StudioStage>("script_lobby");
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [credits, setCredits] = useState(12450);
+  const [credits, setCredits] = useState(10000);
+
+  // Script Generation State with Step-by-Step progress feedback
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [generationStepText, setGenerationStepText] = useState("");
   const [isParsingScript, setIsParsingScript] = useState(false);
 
-  // Fetch initial projects from server
+  // Fetch initial projects
   useEffect(() => {
     fetchProjects();
+    fetchCredits();
   }, []);
+
+  const fetchCredits = async () => {
+    try {
+      const res = await fetch("/api/v1/credits/account");
+      const data = await res.json();
+      if (data.user_credit?.balance !== undefined) {
+        setCredits(data.user_credit.balance);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchProjects = async () => {
     try {
@@ -53,6 +88,8 @@ export default function App() {
         setProjects([data.project, ...projects]);
         setCurrentProject(data.project);
         setCurrentEpisode(null);
+        // 新建后进入阶段二配置资产
+        setStudioStage("central_control");
       }
     } catch (err) {
       console.error("Create project error:", err);
@@ -76,6 +113,24 @@ export default function App() {
     }
   };
 
+  const handleToggleLockAssets = async (locked: boolean) => {
+    if (!currentProject) return;
+    const endpoint = locked
+      ? `/api/projects/${currentProject.id}/lock-assets`
+      : `/api/projects/${currentProject.id}/unlock-assets`;
+
+    try {
+      const res = await fetch(endpoint, { method: "POST" });
+      const data = await res.json();
+      if (data.project) {
+        setCurrentProject(data.project);
+        setProjects(projects.map((p) => (p.id === data.project.id ? data.project : p)));
+      }
+    } catch (e) {
+      console.error("Failed to toggle asset lock:", e);
+    }
+  };
+
   const handleAddCharacter = async (charData: Partial<ProjectCharacter>) => {
     if (!currentProject) return;
     try {
@@ -94,37 +149,142 @@ export default function App() {
     }
   };
 
-  const handleImportScript = (newEpisodes: Episode[], mainCharacters?: any[]) => {
+  const handleAddScene = async (sceneData: Partial<ProjectScene>) => {
     if (!currentProject) return;
+    try {
+      const res = await fetch(`/api/projects/${currentProject.id}/scenes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sceneData),
+      });
+      const data = await res.json();
+      if (data.project) {
+        setCurrentProject(data.project);
+        setProjects(projects.map((p) => (p.id === data.project.id ? data.project : p)));
+      }
+    } catch (err) {
+      console.error("Add scene error:", err);
+    }
+  };
 
-    let updatedChars = currentProject.characters || [];
-    if (mainCharacters && mainCharacters.length > 0) {
-      const createdChars: ProjectCharacter[] = mainCharacters.map((mc: any, idx: number) => ({
-        id: `char-imported-${Date.now()}-${idx}`,
-        project_id: currentProject.id,
-        name: mc.name || "配角",
-        gender: mc.gender || "未知",
-        visual_description: mc.visual_description || "",
+  // 页面 1 的一键生成核心入口 ➔ 动态步骤转场 ➔ 自动跳转到阶段二
+  const handleStartScriptGeneration = async (payload: {
+    genre: string;
+    prompt: string;
+    targetEpisodes: number;
+    rawText?: string;
+  }) => {
+    setIsGeneratingScript(true);
+    setGenerationStepText("[1/3] Gemini 3.6 正在清洗剧本并生成黄金剧情卡点...");
+
+    try {
+      const res = await fetch("/api/ai/incubate-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          genre: payload.genre,
+          prompt: payload.prompt || payload.rawText,
+          target_episodes: payload.targetEpisodes,
+        }),
+      });
+      const data = await res.json();
+
+      setGenerationStepText("[2/3] 正在解耦主角立绘、服装变体与专属音色 Seed...");
+      await new Promise((r) => setTimeout(r, 600));
+
+      setGenerationStepText("[3/3] 正在立项并组装阶段二中央控制确权资产...");
+      await new Promise((r) => setTimeout(r, 600));
+
+      const newProjId = `proj-${Date.now()}`;
+      const newEpisodes: Episode[] = (data.episodes || []).map((ep: any, idx: number) => ({
+        id: `ep-${Date.now()}-${idx}`,
+        project_id: newProjId,
+        episode_number: ep.episode_number || idx + 1,
+        title: ep.title || `第 ${idx + 1} 集：风云际会`,
+        raw_script: ep.raw_script || payload.rawText || "",
+        hook_point: ep.hook_point || "黄金高潮反转卡点",
+        status: "pending",
+        created_at: new Date().toISOString(),
+        storyboards: [],
+      }));
+
+      const newCharacters: ProjectCharacter[] = (data.main_characters || [
+        { name: "主角", gender: "男", visual_description: "黑发修长，双眸如电", default_outfit: "黑风衣" }
+      ]).map((mc: any, idx: number) => ({
+        id: `char-${Date.now()}-${idx}`,
+        project_id: newProjId,
+        name: mc.name || "主角",
+        gender: mc.gender || "男",
+        visual_description: mc.visual_description || "五官深邃立体",
         ref_image_urls: [
           "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=60",
         ],
-        ip_adapter_weight: 0.75,
-        voice_name: "CosyVoice Seed #8821",
+        outfits: [
+          {
+            id: `outfit-${Date.now()}-${idx}-1`,
+            name: mc.default_outfit || "默认常服",
+            description: "日常装束",
+            is_default: true,
+          },
+          {
+            id: `outfit-${Date.now()}-${idx}-2`,
+            name: "高潮战斗装",
+            description: "打斗场景服装解耦",
+            is_default: false,
+          },
+        ],
+        voice_name: mc.voice_type || "霸道冷酷少年音 (CosyVoice-Seed #8821)",
+        voice_seed_param: `seed_custom_${Math.floor(Math.random() * 9000 + 1000)}`,
         created_at: new Date().toISOString(),
       }));
-      updatedChars = [...updatedChars, ...createdChars];
-    }
 
-    const updatedProject = {
-      ...currentProject,
-      characters: updatedChars,
-      episodes: [...(currentProject.episodes || []), ...newEpisodes],
-    };
+      const createdProject: Project = {
+        id: newProjId,
+        user_id: "usr-current",
+        title: `${payload.genre}：${payload.prompt?.slice(0, 14) || "爆款新剧"}`,
+        description: payload.prompt || "Seedance 2.5 原生多模态漫剧工程",
+        cover_url:
+          "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
+        aspect_ratio: "9:16",
+        style_preset: payload.genre,
+        is_assets_locked: false,
+        global_style_config: {
+          base_model: "Seedance 2.5 Multimodal Engine",
+          style_lora: `${payload.genre}_Masterpiece (Weight: 0.85)`,
+          negative_prompt: "blurry, low quality, bad anatomy, deformed face, distorted hands",
+        },
+        status: "draft",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        characters: newCharacters,
+        scenes: [
+          {
+            id: `scene-${Date.now()}-1`,
+            project_id: newProjId,
+            name: "主剧情大厅/核心场景",
+            description: "光影戏剧化的高潮对决主场景",
+            env_prompt: "Cinematic anime scenic background, dramatic sunset, Unreal Engine 5",
+            ref_image_url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=600",
+            created_at: new Date().toISOString(),
+          },
+        ],
+        episodes: newEpisodes,
+      };
 
-    setCurrentProject(updatedProject);
-    setProjects(projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
-    if (newEpisodes.length > 0) {
-      setCurrentEpisode(newEpisodes[0]);
+      setProjects([createdProject, ...projects]);
+      setCurrentProject(createdProject);
+      if (newEpisodes.length > 0) {
+        setCurrentEpisode(newEpisodes[0]);
+      }
+
+      // 整页跳转到阶段二：中央控制台
+      setStudioStage("central_control");
+    } catch (err) {
+      console.error(err);
+      alert("剧本生成异常，已载入默认大纲");
+    } finally {
+      setIsGeneratingScript(false);
+      setGenerationStepText("");
     }
   };
 
@@ -172,6 +332,7 @@ export default function App() {
             sb.image_url ||
             "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
           audio_duration: sb.audio_duration || 3.5,
+          render_engine: "seedance_2.5",
           created_at: new Date().toISOString(),
         }));
 
@@ -189,12 +350,16 @@ export default function App() {
     }
   };
 
+  const isAssetsLocked = currentProject?.is_assets_locked ?? false;
+
   return (
-    <div className="min-h-screen bg-[#0A0A0C] text-slate-100 font-sans antialiased selection:bg-orange-500 selection:text-white pb-12">
-      {/* Top Navbar with Project Scope Breadcrumb */}
+    <div className="min-h-screen bg-[#0A0A0C] text-slate-100 font-sans antialiased selection:bg-orange-500 selection:text-white pb-16">
+      {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(t) => {
+          setActiveTab(t);
+        }}
         projects={projects}
         currentProject={currentProject}
         setCurrentProject={(p) => {
@@ -206,55 +371,147 @@ export default function App() {
         credits={credits}
       />
 
-      {/* Main Tab Views */}
+      {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* TAB 1: STUDIO WORKSPACE */}
+        {/* TAB 1: STUDIO (3-STAGE INDEPENDENT STEP WIZARD ROUTING) */}
         {activeTab === "studio" && (
           <div className="space-y-6">
-            {currentProject ? (
-              <>
-                {/* 1. Script Importer */}
-                <ScriptImporter
-                  project={currentProject}
-                  onImportScript={handleImportScript}
-                />
-
-                {/* 2. Central Control Panel */}
-                <CentralControlPanel
-                  project={currentProject}
-                  onUpdateProject={handleUpdateProject}
-                  onAddCharacter={handleAddCharacter}
-                  onSelectEpisode={setCurrentEpisode}
-                  selectedEpisode={currentEpisode}
-                />
-
-                {/* 3. Timeline Editor */}
-                {currentEpisode ? (
-                  <TimelineEditor
-                    episode={currentEpisode}
-                    onUpdateEpisode={handleUpdateEpisode}
-                    onBreakdownScript={handleBreakdownScript}
-                    isParsingScript={isParsingScript}
-                  />
-                ) : (
-                  <div className="bg-[#16161A] border border-white/10 rounded-xl p-8 text-center text-slate-400">
-                    请在上方剧本三通道导入中生成或导入章节，即可进入多轨剪辑与音画对齐空间。
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="bg-[#16161A] border border-white/10 rounded-2xl p-12 text-center space-y-4 shadow-2xl">
-                <h3 className="text-lg font-semibold text-white">暂无漫剧项目</h3>
-                <p className="text-xs text-slate-400">
-                  点击右上角【新建漫剧项目】即可开启隔离沙盒，体验 AIGC 全流程漫剧生成。
-                </p>
+            {/* Step Wizard Progress Breadcrumb Bar */}
+            <div className="bg-[#16161A] border border-white/10 rounded-2xl p-2.5 flex items-center justify-between flex-wrap gap-2 text-xs shadow-xl">
+              <div className="flex items-center space-x-2">
+                {/* Step 1 Tab Button */}
                 <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-400 hover:to-rose-400 text-white font-medium px-6 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-orange-500/20 cursor-pointer"
+                  onClick={() => setStudioStage("script_lobby")}
+                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer ${
+                    studioStage === "script_lobby"
+                      ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  }`}
                 >
-                  立刻创建第一个漫剧项目
+                  <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center text-[10px]">
+                    01
+                  </span>
+                  <span>漫剧项目大厅与剧本立项</span>
+                </button>
+
+                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+
+                {/* Step 2 Tab Button */}
+                <button
+                  onClick={() => {
+                    if (currentProject) setStudioStage("central_control");
+                  }}
+                  disabled={!currentProject}
+                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer disabled:opacity-30 ${
+                    studioStage === "central_control"
+                      ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center text-[10px]">
+                    02
+                  </span>
+                  <span>中央控制台 · 资产确权</span>
+                  {isAssetsLocked ? (
+                    <Lock className="w-3 h-3 text-green-400" />
+                  ) : (
+                    <Unlock className="w-3 h-3 text-amber-400" />
+                  )}
+                </button>
+
+                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+
+                {/* Step 3 Tab Button */}
+                <button
+                  onClick={() => {
+                    if (currentProject && isAssetsLocked) {
+                      setStudioStage("episode_studio");
+                    } else if (currentProject && !isAssetsLocked) {
+                      alert("⚠️ 请先在【阶段二：中央控制台】确认并一键锁定资产后，再进入阶段三制作室！");
+                    }
+                  }}
+                  disabled={!currentProject}
+                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer disabled:opacity-30 ${
+                    studioStage === "episode_studio"
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                      : isAssetsLocked
+                      ? "text-slate-300 hover:text-white hover:bg-white/5"
+                      : "text-slate-500 cursor-not-allowed"
+                  }`}
+                >
+                  <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center text-[10px]">
+                    03
+                  </span>
+                  <span>分集流水线 · Seedance 制作室</span>
                 </button>
               </div>
+
+              {/* Quick Project Info on right */}
+              {currentProject && (
+                <div className="text-[11px] text-slate-400 flex items-center gap-2 pr-2">
+                  <span>当前项目:</span>
+                  <span className="text-slate-200 font-semibold bg-black/40 px-2 py-0.5 rounded border border-white/10">
+                    {currentProject.title}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* PAGE 1: SCRIPT & PROJECT LOBBY */}
+            {studioStage === "script_lobby" && (
+              <ScriptImporter
+                projects={projects}
+                currentProject={currentProject}
+                onSelectProject={(proj, targetStage) => {
+                  setCurrentProject(proj);
+                  if (proj.episodes?.length > 0) setCurrentEpisode(proj.episodes[0]);
+                  setStudioStage(targetStage || "central_control");
+                }}
+                onOpenCreateProjectModal={() => setIsCreateModalOpen(true)}
+                onStartScriptGeneration={handleStartScriptGeneration}
+                isGenerating={isGeneratingScript}
+                generationStepText={generationStepText}
+              />
+            )}
+
+            {/* PAGE 2: CENTRAL CONTROL GATEKEEPER PANEL */}
+            {studioStage === "central_control" && currentProject && (
+              <CentralControlPanel
+                project={currentProject}
+                onUpdateProject={handleUpdateProject}
+                onAddCharacter={handleAddCharacter}
+                onAddScene={handleAddScene}
+                onSelectEpisode={setCurrentEpisode}
+                selectedEpisode={currentEpisode}
+                onToggleLockAssets={handleToggleLockAssets}
+                onProceedToTimeline={() => setStudioStage("episode_studio")}
+                onBackToLobby={() => setStudioStage("script_lobby")}
+              />
+            )}
+
+            {/* PAGE 3: TIMELINE & SEEDANCE MULTIMODAL STUDIO */}
+            {studioStage === "episode_studio" && currentProject && (
+              currentEpisode ? (
+                <TimelineEditor
+                  episode={currentEpisode}
+                  project={currentProject}
+                  onUpdateEpisode={handleUpdateEpisode}
+                  onBreakdownScript={handleBreakdownScript}
+                  isParsingScript={isParsingScript}
+                  onBackToCentralControl={() => setStudioStage("central_control")}
+                  onNavigateTab={setActiveTab}
+                />
+              ) : (
+                <div className="bg-[#16161A] border border-white/10 rounded-2xl p-12 text-center text-slate-400 space-y-3">
+                  <p>当前项目暂无分集数据，请返回阶段二添加分集或返回阶段一大厅导入剧本。</p>
+                  <button
+                    onClick={() => setStudioStage("central_control")}
+                    className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs"
+                  >
+                    返回中央控制台
+                  </button>
+                </div>
+              )
             )}
           </div>
         )}

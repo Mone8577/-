@@ -108,18 +108,18 @@ export const ComputeDashboard: React.FC<ComputeDashboardProps> = ({
             <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span>
             High Priority 秒级队列 (实时)
           </div>
-          <div className="text-[11px] text-slate-400">平均响应延时: 1.2s</div>
+          <div className="text-[11px] text-slate-400">平均响应延时: 0.8s (API 直连)</div>
         </div>
 
         <div className="bg-[#16161A] border border-white/10 p-5 rounded-2xl space-y-2 shadow-xl">
           <div className="text-xs text-slate-400 flex items-center justify-between">
-            <span>支持模型集群</span>
+            <span>支持原生模型矩阵</span>
             <Server className="w-4 h-4 text-orange-400" />
           </div>
           <div className="text-xs font-semibold text-slate-200">
-            ComfyUI / FLUX.1 / CosyVoice / Gemini 3.6
+            Seedance 2.5 / 2.0 / CosyVoice / Gemini 3.6
           </div>
-          <div className="text-[11px] text-green-400">双队列负载均衡正常</div>
+          <div className="text-[11px] text-green-400">免本地环境 · 原生多模态音画同生</div>
         </div>
       </div>
 
@@ -127,28 +127,28 @@ export const ComputeDashboard: React.FC<ComputeDashboardProps> = ({
       <div className="bg-[#16161A] border border-white/10 p-5 rounded-2xl space-y-3 shadow-xl">
         <h3 className="font-semibold text-sm text-white flex items-center gap-2">
           <CreditCard className="w-4 h-4 text-orange-400" />
-          算力点数透明化计费标准
+          Seedance 原生模型计费标准
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
           <div className="bg-[#0C0C0F] p-3.5 rounded-xl border border-white/10">
-            <div className="text-slate-400">LLM 剧本解析</div>
+            <div className="text-slate-400">三通道剧本结构化拆解</div>
             <div className="font-semibold text-orange-400 mt-1">1 Credit / 次</div>
           </div>
 
           <div className="bg-[#0C0C0F] p-3.5 rounded-xl border border-white/10">
-            <div className="text-slate-400">ComfyUI 跑图画格</div>
-            <div className="font-semibold text-orange-400 mt-1">1 Credit / 张</div>
-          </div>
-
-          <div className="bg-[#0C0C0F] p-3.5 rounded-xl border border-white/10">
-            <div className="text-slate-400">情绪化 TTS 配音</div>
-            <div className="font-semibold text-orange-400 mt-1">1 Credit / 200字</div>
-          </div>
-
-          <div className="bg-[#0C0C0F] p-3.5 rounded-xl border border-white/10">
-            <div className="text-slate-400">2.5D/SVD 动态运镜</div>
+            <div className="text-slate-400">Seedance 2.5 音画同生镜头</div>
             <div className="font-semibold text-orange-400 mt-1">5 Credits / 镜头</div>
+          </div>
+
+          <div className="bg-[#0C0C0F] p-3.5 rounded-xl border border-white/10">
+            <div className="text-slate-400">专属音色 Seed 克隆绑定</div>
+            <div className="font-semibold text-orange-400 mt-1">1 Credit / 角色</div>
+          </div>
+
+          <div className="bg-[#0C0C0F] p-3.5 rounded-xl border border-white/10">
+            <div className="text-slate-400">全集音视频一键合成</div>
+            <div className="font-semibold text-orange-400 mt-1">10 Credits / 整集</div>
           </div>
         </div>
       </div>

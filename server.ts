@@ -11,15 +11,21 @@ const PORT = 3000;
 
 app.use(express.json({ limit: "50mb" }));
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || "",
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+// Initialize Gemini Client (Lazy)
+let aiClient: GoogleGenAI | null = null;
+function getAI(): GoogleGenAI {
+  if (!aiClient) {
+    aiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || "",
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return aiClient;
+}
 
 // In-Memory Store for User Credits & Logs
 let userCreditStore = {
@@ -34,32 +40,32 @@ let creditLogsStore: any[] = [
     id: "log-1",
     user_id: "user-default",
     project_id: "proj-1",
-    amount: -5,
+    amount: -10,
     action_type: "deduct",
-    description: "LLM 脚本智能分镜解析 (Gemini 3.6 Flash)",
+    description: "Seedance 2.5 剧本多通道结构化抽取 (三位一体分镜)",
     created_at: new Date(Date.now() - 600000).toISOString(),
   },
   {
     id: "log-2",
     user_id: "user-default",
     project_id: "proj-1",
-    amount: -15,
+    amount: -25,
     action_type: "deduct",
-    description: "ComfyUI 2.5D 运镜生图 (3镜头)",
+    description: "Seedance 2.5 原生音画同生视频渲染 (镜头 #1-#3)",
     created_at: new Date(Date.now() - 1500000).toISOString(),
   },
   {
     id: "log-3",
     user_id: "user-default",
     project_id: "proj-1",
-    amount: -3,
+    amount: -5,
     action_type: "deduct",
-    description: "Zero-Shot 角色音色克隆 TTS (CosyVoice v2)",
+    description: "CosyVoice 专属音色 Seed 克隆绑定",
     created_at: new Date(Date.now() - 3600000).toISOString(),
   },
 ];
 
-// In-Memory Store for fast interactive demo persistence
+// In-Memory Projects Database with Seedance Native Multimodal Schema
 let projectsDatabase: any[] = [
   {
     id: "proj-1",
@@ -69,12 +75,14 @@ let projectsDatabase: any[] = [
     cover_url: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=60",
     aspect_ratio: "9:16",
     style_preset: "anime_2d",
+    is_assets_locked: true,
+    locked_at: new Date(Date.now() - 86400000).toISOString(),
     global_style_config: {
-      base_model: "FLUX.1-Dev (Manga Edition)",
+      base_model: "Seedance 2.5 Multimodal Engine",
       style_lora: "Xianxia_Webtoon_V2 (Weight: 0.8)",
       negative_prompt: "blurry, low quality, bad anatomy, deformed face, distorted hands",
     },
-    status: "processing",
+    status: "in_production",
     created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
     updated_at: new Date().toISOString(),
     characters: [
@@ -83,14 +91,28 @@ let projectsDatabase: any[] = [
         project_id: "proj-1",
         name: "叶空 (楚玄仙尊)",
         gender: "男",
-        visual_description: "18岁少年，黑发修长，眼神如鹰，身穿休闲连帽衫，散发淡蓝色灵气光晕",
+        visual_description: "18岁少年，黑发修长，眼神如鹰，现代潮牌装扮，散发淡蓝色灵气光晕",
         ref_image_urls: [
           "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=60",
           "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=60",
         ],
-        ip_adapter_weight: 0.75,
+        outfits: [
+          {
+            id: "outfit-1-1",
+            name: "常服-休闲黑色连帽衫",
+            description: "日常高中生活常服，黑色带兜帽与简约白色条纹",
+            is_default: true,
+          },
+          {
+            id: "outfit-1-2",
+            name: "战袍-楚玄仙尊墨色长袍",
+            description: "仙尊真身显现时的九天玄丝长袍，绣有金色真龙暗纹",
+            is_default: false,
+          },
+        ],
         voice_id: "voice-m1",
-        voice_name: "霸道冷酷少男 (CosyVoice-Seed #8821)",
+        voice_name: "霸道冷酷少年音 (CosyVoice-Seed #8821)",
+        voice_seed_param: "seed_cosy_8821_dynamic",
         created_at: new Date().toISOString(),
       },
       {
@@ -98,13 +120,41 @@ let projectsDatabase: any[] = [
         project_id: "proj-1",
         name: "林雪儿",
         gender: "女",
-        visual_description: "江城第一豪门千金，长发及腰，白色长裙，气质高冷高贵",
+        visual_description: "江城第一豪门千金，长发及腰，白色长裙，气质高冷清绝",
         ref_image_urls: [
           "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=60",
         ],
-        ip_adapter_weight: 0.75,
+        outfits: [
+          {
+            id: "outfit-2-1",
+            name: "常服-高定白色晚礼裙",
+            description: "出席顶级拍卖会的高定绸缎长裙",
+            is_default: true,
+          },
+        ],
         voice_id: "voice-f1",
         voice_name: "清冷御姐音 (CosyVoice-Seed #4102)",
+        voice_seed_param: "seed_cosy_4102_calm",
+        created_at: new Date().toISOString(),
+      },
+    ],
+    scenes: [
+      {
+        id: "scene-1",
+        project_id: "proj-1",
+        name: "江城高中男生宿舍",
+        description: "夕阳斜照的凌乱宿舍，桌上摆着旧书本与全身镜",
+        env_prompt: "High school dorm room, sunset golden hour rays through window, cinematic anime interior",
+        ref_image_url: "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=600&auto=format&fit=crop&q=60",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "scene-2",
+        project_id: "proj-1",
+        name: "林氏豪门顶级拍卖大厅",
+        description: "金碧辉煌的现代拍卖行，水晶吊灯，全场豪门名流云集",
+        env_prompt: "Luxury modern grand auction hall, crystal chandeliers, VIP audience, dramatic spotlight",
+        ref_image_url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=600&auto=format&fit=crop&q=60",
         created_at: new Date().toISOString(),
       },
     ],
@@ -115,7 +165,7 @@ let projectsDatabase: any[] = [
         episode_number: 1,
         title: "第一集：重回十八岁",
         raw_script: "叶空猛地睁开眼睛，环顾四周，发现自己回到了高中宿舍。看着镜子里的年轻面孔，他嘴角勾起一抹冷笑：“三百年了，本尊终于重回人间！”",
-        hook_point: "黄金钩子：昔日仇敌推门而入，叶空凌空一指击碎大理石桌，震撼全场！",
+        hook_point: "🔥 黄金卡点：昔日仇敌推门而入，叶空凌空一指击碎大理石桌，震撼全场！",
         status: "ready",
         created_at: new Date().toISOString(),
         storyboards: [
@@ -128,10 +178,13 @@ let projectsDatabase: any[] = [
             visual_prompt: "特写：少年的眼睛猛地睁开，瞳孔闪烁着淡蓝色灵气符文，震撼的面部表情，高品质国漫画风",
             dialogue: "“这里是...江城高中宿舍？我楚玄仙尊居然没有死在雷劫之下？！”",
             speaker_character_id: "char-1",
+            speaker_character_name: "叶空 (楚玄仙尊)",
+            outfit_id: "outfit-1-1",
             image_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
             audio_url: "",
             audio_duration: 3.8,
-            video_motion_url: "",
+            render_engine: "seedance_2.5",
+            video_motion_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
             created_at: new Date().toISOString(),
           },
           {
@@ -143,10 +196,13 @@ let projectsDatabase: any[] = [
             visual_prompt: "中景：叶空走到宿舍全身镜前，伸手触摸镜面，镜子反射出年轻英俊却眼神深邃的少年",
             dialogue: "“三百年苦修，一朝重回少年时。前世欠我的，这一世我要你们加倍奉还！”",
             speaker_character_id: "char-1",
+            speaker_character_name: "叶空 (楚玄仙尊)",
+            outfit_id: "outfit-1-1",
             image_url: "https://images.unsplash.com/photo-1563089145-599997674d42?w=800&auto=format&fit=crop&q=60",
             audio_url: "",
             audio_duration: 4.5,
-            video_motion_url: "",
+            render_engine: "seedance_2.5",
+            video_motion_url: "https://images.unsplash.com/photo-1563089145-599997674d42?w=800&auto=format&fit=crop&q=60",
             created_at: new Date().toISOString(),
           },
           {
@@ -158,10 +214,13 @@ let projectsDatabase: any[] = [
             visual_prompt: "远景/高潮：宿舍门被狠狠踢开，豪门恶霸恶狠狠走进来，叶空淡然抬手，指尖缠绕电光",
             dialogue: "“狗东西，跪下说话！”",
             speaker_character_id: "char-1",
+            speaker_character_name: "叶空 (楚玄仙尊)",
+            outfit_id: "outfit-1-1",
             image_url: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=60",
             audio_url: "",
             audio_duration: 2.9,
-            video_motion_url: "",
+            render_engine: "seedance_2.5",
+            video_motion_url: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=60",
             created_at: new Date().toISOString(),
           },
         ],
@@ -172,7 +231,7 @@ let projectsDatabase: any[] = [
         episode_number: 2,
         title: "第二集：拍卖会的交锋",
         raw_script: "林家大拍卖会上，叶空凭一眼看出三百年九叶芝草，引起全场轰动。",
-        hook_point: "黄金钩子：林雪儿主动递上黑金名片，全场名流惊呆！",
+        hook_point: "🔥 黄金卡点：林雪儿主动递上黑金名片，全场名流惊呆！",
         status: "ready",
         created_at: new Date().toISOString(),
         storyboards: [
@@ -185,9 +244,11 @@ let projectsDatabase: any[] = [
             visual_prompt: "全景：豪华拍卖大厅，水晶吊灯熠熠生辉，台前展示着珍稀古药材",
             dialogue: "“此药看似百年灵芝，实则是罕见的九叶纯阳芝！”",
             speaker_character_id: "char-1",
+            speaker_character_name: "叶空 (楚玄仙尊)",
             image_url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=800&auto=format&fit=crop&q=60",
             audio_url: "",
             audio_duration: 3.5,
+            render_engine: "seedance_2.5",
             created_at: new Date().toISOString(),
           },
         ],
@@ -198,7 +259,67 @@ let projectsDatabase: any[] = [
         episode_number: 3,
         title: "第三集：豪门病危与神医",
         raw_script: "林老太爷突然吐血倒地，全城名医束手无策，叶空掏出九根银针。",
-        hook_point: "黄金钩子：九针渡劫，起死回生！",
+        hook_point: "🔥 黄金卡点：九针渡劫，起死回生！",
+        status: "pending",
+        created_at: new Date().toISOString(),
+        storyboards: [],
+      },
+    ],
+  },
+  {
+    id: "proj-2",
+    user_id: "user-default",
+    title: "星际战姬：零号纪元",
+    description: "末日机甲降临，少女机师驾驶终极泰坦撕裂深空异兽！",
+    cover_url: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=60",
+    aspect_ratio: "9:16",
+    style_preset: "cyberpunk",
+    is_assets_locked: false,
+    global_style_config: {
+      base_model: "Seedance 2.5 Multimodal Engine",
+      style_lora: "SciFi_Mecha_V3 (Weight: 0.85)",
+      negative_prompt: "blurry, low quality, deformed mecha",
+    },
+    status: "draft",
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updated_at: new Date().toISOString(),
+    characters: [
+      {
+        id: "char-201",
+        project_id: "proj-2",
+        name: "零号姬 · 艾拉",
+        gender: "女",
+        visual_description: "银白色短发，红蓝色机械义眼，身着流光紧身驾驶作战服",
+        ref_image_urls: [
+          "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=60",
+        ],
+        outfits: [
+          { id: "outfit-201-1", name: "驾驶服-零式红白机师服", description: "纳米机甲驾驶服", is_default: true },
+        ],
+        voice_id: "voice-f2",
+        voice_name: "高冷少女战姬音 (CosyVoice-Seed #1092)",
+        created_at: new Date().toISOString(),
+      },
+    ],
+    scenes: [
+      {
+        id: "scene-201",
+        project_id: "proj-2",
+        name: "轨道太空母舰驾驶舱",
+        description: "全息光幕环绕的环形高科技机甲驾驶舱",
+        env_prompt: "Futuristic spaceship cockpit, holographic monitors, cyberpunk neon glow",
+        ref_image_url: "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=600&auto=format&fit=crop&q=60",
+        created_at: new Date().toISOString(),
+      },
+    ],
+    episodes: [
+      {
+        id: "ep-201",
+        project_id: "proj-2",
+        episode_number: 1,
+        title: "第1集：红色警报",
+        raw_script: "警报在深空母舰中疯狂回响，异兽狂潮突袭防线，艾拉咬碎口香糖，跃入泰坦核心。",
+        hook_point: "🔥 黄金卡点：泰坦聚能光刃拔出，一击贯穿千米行星级巨兽！",
         status: "pending",
         created_at: new Date().toISOString(),
         storyboards: [],
@@ -244,12 +365,12 @@ let publishTasksDatabase: any[] = [
 
 // ---------------- API ENDPOINTS ---------------- //
 
-// 1. Get Projects
+// 1. Get Projects (Lobby)
 app.get("/api/projects", (req, res) => {
   res.json({ projects: projectsDatabase });
 });
 
-// Create Project
+// Create Project Sandbox
 app.post("/api/projects", (req, res) => {
   const { title, description, aspect_ratio, style_preset } = req.body;
   const newProj = {
@@ -260,8 +381,9 @@ app.post("/api/projects", (req, res) => {
     cover_url: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=60",
     aspect_ratio: aspect_ratio || "9:16",
     style_preset: style_preset || "anime_2d",
+    is_assets_locked: false,
     global_style_config: {
-      base_model: "FLUX.1-Dev",
+      base_model: "Seedance 2.5 Multimodal Engine",
       style_lora: "Webtoon_Master_V2 (0.75)",
       negative_prompt: "blurry, bad quality, deformed hands",
     },
@@ -269,13 +391,14 @@ app.post("/api/projects", (req, res) => {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     characters: [],
+    scenes: [],
     episodes: [],
   };
   projectsDatabase.unshift(newProj);
   res.json({ success: true, project: newProj });
 });
 
-// Update Project World/Style/Characters
+// Update Project World/Style/Lock Gatekeeper
 app.put("/api/projects/:id", (req, res) => {
   const projIndex = projectsDatabase.findIndex((p) => p.id === req.params.id);
   if (projIndex === -1) {
@@ -289,7 +412,32 @@ app.put("/api/projects/:id", (req, res) => {
   res.json({ success: true, project: projectsDatabase[projIndex] });
 });
 
-// Add Character
+// Lock Global Assets (Gatekeeper)
+app.post("/api/projects/:id/lock-assets", (req, res) => {
+  const proj = projectsDatabase.find((p) => p.id === req.params.id);
+  if (!proj) return res.status(404).json({ error: "Project not found" });
+
+  proj.is_assets_locked = true;
+  proj.locked_at = new Date().toISOString();
+  proj.status = "assets_locked";
+  proj.updated_at = new Date().toISOString();
+
+  res.json({ success: true, message: "中央资产门禁已锁定，已解锁下游分集渲染流水线！", project: proj });
+});
+
+// Unlock Global Assets
+app.post("/api/projects/:id/unlock-assets", (req, res) => {
+  const proj = projectsDatabase.find((p) => p.id === req.params.id);
+  if (!proj) return res.status(404).json({ error: "Project not found" });
+
+  proj.is_assets_locked = false;
+  proj.status = "draft";
+  proj.updated_at = new Date().toISOString();
+
+  res.json({ success: true, message: "中央资产门禁已解锁进入编辑模式", project: proj });
+});
+
+// Add Character (with Decoupled Outfits)
 app.post("/api/projects/:id/characters", (req, res) => {
   const proj = projectsDatabase.find((p) => p.id === req.params.id);
   if (!proj) return res.status(404).json({ error: "Project not found" });
@@ -303,9 +451,17 @@ app.post("/api/projects/:id/characters", (req, res) => {
     ref_image_urls: req.body.ref_image_urls || [
       "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=60",
     ],
-    ip_adapter_weight: req.body.ip_adapter_weight || 0.75,
+    outfits: req.body.outfits || [
+      {
+        id: `outfit-${Date.now()}-1`,
+        name: "默认常服",
+        description: "日常默认服饰设定",
+        is_default: true,
+      },
+    ],
     voice_id: req.body.voice_id || "voice-default",
-    voice_name: req.body.voice_name || "默认男声 (CosyVoice)",
+    voice_name: req.body.voice_name || "CosyVoice 专属音色",
+    voice_seed_param: req.body.voice_seed_param || "seed_default_01",
     created_at: new Date().toISOString(),
   };
 
@@ -313,58 +469,100 @@ app.post("/api/projects/:id/characters", (req, res) => {
   res.json({ success: true, character: newChar, project: proj });
 });
 
-// 2. AI Story Original Incubator (Gemini AI)
+// Add Scene Card
+app.post("/api/projects/:id/scenes", (req, res) => {
+  const proj = projectsDatabase.find((p) => p.id === req.params.id);
+  if (!proj) return res.status(404).json({ error: "Project not found" });
+
+  const newScene = {
+    id: `scene-${Date.now()}`,
+    project_id: proj.id,
+    name: req.body.name || "新场景",
+    description: req.body.description || "",
+    env_prompt: req.body.env_prompt || "Cinematic anime scenery",
+    ref_image_url: req.body.ref_image_url || "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=600",
+    created_at: new Date().toISOString(),
+  };
+
+  if (!proj.scenes) proj.scenes = [];
+  proj.scenes.push(newScene);
+  res.json({ success: true, scene: newScene, project: proj });
+});
+
+// 2. AI Story Original Incubator (Gemini AI Pipeline)
 app.post("/api/ai/incubate-script", async (req, res) => {
   try {
     const { genre, prompt, target_episodes } = req.body;
-    const systemPrompt = `你是一位顶级网文漫剧编剧大师。请根据用户提供的题材【${genre || "玄幻重生"}】和创意灵感【${prompt}】，创作一个包含完整起承转合、黄金钩子（Hook Point）与多集大纲的漫剧剧本。
-
-返回标准 JSON 格式，严格符合以下结构：
+    const systemPrompt = `你是一位顶级网文漫剧编剧与导演。请根据题材【${genre || "玄幻重生"}】和创意灵感【${prompt}】，创作标准漫剧剧本大纲。
+必须返回严格 JSON 格式，结构如下：
 {
   "title": "剧本名称",
-  "synopsis": "剧情梗概与高能看点",
-  "style_suggestion": "建议视觉画风风格",
+  "synopsis": "剧情梗概与卖点",
+  "style_suggestion": "建议视觉画风",
   "main_characters": [
-    { "name": "主角名", "gender": "男/女", "visual_description": "外貌与服装特征" }
+    {
+      "name": "主角名",
+      "gender": "男/女",
+      "visual_description": "外貌与面部特征",
+      "default_outfit": "首套常服描述",
+      "voice_type": "沉稳霸气青年音 / 清冷少女音 / 霸道总裁音"
+    }
+  ],
+  "main_scenes": [
+    { "name": "核心场景名", "description": "场景环境描写", "env_prompt": "英文场景Prompt" }
   ],
   "episodes": [
     {
       "episode_number": 1,
       "title": "分集标题",
-      "raw_script": "本集详细剧本文本与对白",
-      "hook_point": "本集结尾黄金钩子卡点"
+      "raw_script": "本集对白与动作描写",
+      "hook_point": "🔥 黄金卡点：本集结尾悬念高潮钩子"
     }
   ]
 }`;
 
     if (!process.env.GEMINI_API_KEY) {
-      // Fallback mock if key not set
       return res.json({
-        title: `【AI Incubated】${prompt.slice(0, 10)}...`,
+        title: `【AI孵化】${prompt.slice(0, 10)}...`,
         synopsis: "由AI孵化的爆款短剧剧本，包含强烈反转与高潮卡点。",
         style_suggestion: "国漫风玄幻 / 高对比度发光灵气",
         main_characters: [
-          { name: "主角", gender: "男", visual_description: "黑发红瞳，身披墨色长袍，手持神剑" },
-          { name: "女主", gender: "女", visual_description: "银发紫眸，仙气飘飘，手拿玉笛" }
+          {
+            name: "萧逸",
+            gender: "男",
+            visual_description: "黑发修长，眼神如鹰，散发淡蓝灵光",
+            default_outfit: "常服-黑色修身风衣",
+            voice_type: "霸道冷酷少年音 (CosyVoice-Seed #8821)",
+          },
+          {
+            name: "苏清雪",
+            gender: "女",
+            visual_description: "银发紫眸，高贵清绝",
+            default_outfit: "常服-白色高定晚礼裙",
+            voice_type: "清冷御姐音 (CosyVoice-Seed #4102)",
+          },
+        ],
+        main_scenes: [
+          { name: "天海大厦顶层大厅", description: "俯瞰江城的奢华落地窗大厅", env_prompt: "Luxury penthouse hall, night city view" },
         ],
         episodes: [
           {
             episode_number: 1,
             title: "第1集：异界觉醒",
-            raw_script: "天地突变，主角在废墟中睁开双眼，体内封印的九天至尊龙魂轰然破封！",
-            hook_point: "反派率众人逼近，主角一掌将山峰轰塌，震撼全场！"
+            raw_script: "天地突变，萧逸在废墟中睁开双眼，体内封印的至尊龙魂轰然破封！",
+            hook_point: "🔥 黄金卡点：反派率众人逼近，萧逸一掌将山峰轰塌，震撼全场！",
           },
           {
             episode_number: 2,
             title: "第2集：神威赫赫",
-            raw_script: "宗门长老赶到，欲将主角收为亲传弟子，主角冷笑拒绝。",
-            hook_point: "主角展现超越宗主的惊天神识，全宗跪叩！"
-          }
-        ]
+            raw_script: "宗门长老赶到，欲将萧逸收为亲传弟子，萧逸冷笑拒绝。",
+            hook_point: "🔥 黄金卡点：萧逸展现超越宗主的惊天神识，全宗跪叩！",
+          },
+        ],
       });
     }
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-3.6-flash",
       contents: `生成 ${target_episodes || 3} 集漫剧剧本：${prompt}`,
       config: {
@@ -381,85 +579,88 @@ app.post("/api/ai/incubate-script", async (req, res) => {
   }
 });
 
-// 3. AI Script Breakdown to Storyboard JSON (Gemini AI Pipeline)
+// 3. Seedance 2.5 Three-in-One Storyboard Parser
 app.post("/api/v1/storyboards/parse-script", async (req, res) => {
   try {
     const { project_id, episode_id, raw_script_text } = req.body;
 
-    // 1. Check if Project and Episode exist
     const project = projectsDatabase.find((p) => p.id === project_id);
     const episode = project?.episodes?.find((e: any) => e.id === episode_id);
 
-    if (!project || !episode || episode.project_id !== project_id) {
+    if (!project || !episode) {
       return res.status(400).json({ detail: "Episode 不存在或 Project ID 不匹配" });
     }
 
     const scriptToParse = raw_script_text || episode.raw_script || "";
-    const charNames = (project.characters || []).map((c: any) => c.name).join(", ");
+    const charList = (project.characters || []).map((c: any) => `${c.name}(${c.gender})`).join(", ");
 
-    const systemPrompt = `你是一位商业级漫剧导演与 AI 编剧 Agent。请对输入的漫剧章节剧本进行多通道结构化解析，提炼出黄金高潮卡点（gold_hook）与按镜头拆解的分镜列表（storyboards）。
-已知角色列表参考: [${charNames}]
+    const systemPrompt = `你是一位专注 Seedance 2.0/2.5 多模态漫剧视频的专业导演 Agent。请将输入的漫剧章节剧本解析为 Seedance 原生多镜头叙事的三位一体分镜组（视觉描述 + 运镜机位 + 台词与声音）。
+已知角色列表: [${charList}]
 
 要求：
-1. gold_hook: 本集结尾或高潮处的黄金钩子场景描写，极具悬念与冲击力。
-2. storyboards 数组中的每一个 shot 元素包含：
+1. gold_hook: 本集结尾的黄金高潮卡点（悬念/反转）。
+2. storyboards 数组中的每个 shot 包含：
    - shot_number: 镜头序号 (1, 2, 3...)
-   - camera_movement: 镜头运镜风格 ("zoom_in", "zoom_out", "pan_left", "pan_right", "static", "2.5d_tilt")
-   - visual_prompt_en: 高品质 Stable Diffusion / ComfyUI 画面描述 Prompt (包含环境、光影、人物面部表情、视觉特效、Webtoon 画风)
-   - dialogue: 对应角色对白或旁白
-   - speaker_character_name: 说话的角色姓名
-3. 镜头节奏紧凑连贯，每集提取 3~6 个核心对齐画格。
+   - camera_movement: 机位运镜 ("zoom_in", "zoom_out", "pan_left", "pan_right", "static", "2.5d_tilt", "drone_orbit")
+   - visual_prompt_en: Seedance 原生视频的高品质 Prompt (画面动态构图、角色动作、微表情、环境光影、动漫质感)
+   - dialogue: 角色对白或台词
+   - speaker_character_name: 说话人角色名
+   - audio_duration: 预估音频与镜头时长(秒，通常2.5~5秒)
 
-请返回严格的 JSON 格式：
+返回 JSON 格式：
 {
-  "gold_hook": "黄金钩子：昔日仇敌推门而入，叶空凌空一指击碎大理石桌，震撼全场！",
+  "gold_hook": "🔥 黄金卡点：昔日仇敌推门而入，叶空凌空一指击碎大理石桌，震撼全场！",
   "storyboards": [
     {
       "shot_number": 1,
       "camera_movement": "zoom_in",
-      "visual_prompt_en": "Close up shot of young male anime protagonist, eyes flashing glowing blue aura runes, intense expression, highly detailed masterpiece 8k",
+      "visual_prompt_en": "Close up shot of anime male protagonist opening eyes with glowing blue aura runes, shock expression, cinematic lighting, 8k masterpiece",
       "dialogue": "“没想到三百年后，本尊真的重回少年时代了！”",
-      "speaker_character_name": "叶空"
+      "speaker_character_name": "${project.characters?.[0]?.name || "叶空"}",
+      "audio_duration": 3.5
     }
   ]
 }`;
 
     let parsedResult: { gold_hook: string; storyboards: any[] } = {
-      gold_hook: "黄金钩子：高能反转与震撼名场面引爆看点！",
+      gold_hook: "🔥 黄金卡点：高能反转名场面引爆全场！",
       storyboards: [],
     };
 
     if (!process.env.GEMINI_API_KEY) {
       parsedResult = {
-        gold_hook: "黄金钩子：昔日仇敌推门逼近，主角凌空一指斩断灵木，全场肃然失色！",
+        gold_hook: "🔥 黄金卡点：仇敌逼近，主角凌空一指斩断灵木，全场肃然失色！",
         storyboards: [
           {
             shot_number: 1,
             camera_movement: "zoom_in",
-            visual_prompt_en: "Close up of anime boy opening eyes with luminous blue magical runes in pupils, highly detailed webtoon style",
+            visual_prompt_en: "Close up of anime protagonist opening eyes with luminous blue magical runes in pupils, cinematic webtoon animation",
             dialogue: "“这里是...江城宿舍？我真的重生了！”",
             speaker_character_name: project.characters?.[0]?.name || "叶空",
+            audio_duration: 3.5,
           },
           {
             shot_number: 2,
             camera_movement: "pan_right",
-            visual_prompt_en: "Medium shot of protagonist standing near window with sunset rays, floating cyan aura around fingertips",
+            visual_prompt_en: "Medium shot of protagonist standing near window with sunset golden rays, floating cyan energy around fingertips",
             dialogue: "“前世所有欠我的，这一世统统还回来！”",
             speaker_character_name: project.characters?.[0]?.name || "叶空",
+            audio_duration: 4.2,
           },
           {
             shot_number: 3,
             camera_movement: "2.5d_tilt",
-            visual_prompt_en: "Low angle wide shot of room door kicked open, antagonist entering with shocked expressions",
+            visual_prompt_en: "Low angle dynamic shot of room door kicked open, antagonist entering with shocked expressions, electric sparks crackling",
             dialogue: "“给我跪下！”",
             speaker_character_name: project.characters?.[0]?.name || "叶空",
+            audio_duration: 2.8,
           },
         ],
       };
     } else {
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: "gemini-3.6-flash",
-        contents: `项目标题: ${project.title}\n分集标题: ${episode.title}\n剧本正文:\n${scriptToParse}`,
+        contents: `项目标题: ${project.title}\n分集: ${episode.title}\n剧本正文:\n${scriptToParse}`,
         config: {
           systemInstruction: systemPrompt,
           responseMimeType: "application/json",
@@ -469,22 +670,28 @@ app.post("/api/v1/storyboards/parse-script", async (req, res) => {
       parsedResult = JSON.parse(response.text || "{}");
     }
 
-    // 3. Save parsed storyboards & hook point to database in memory
-    const generatedStoryboards = (parsedResult.storyboards || []).map((shot: any, idx: number) => ({
-      id: `sb-${Date.now()}-${idx + 1}`,
-      episode_id,
-      project_id,
-      shot_number: shot.shot_number || idx + 1,
-      camera_movement: shot.camera_movement || "zoom_in",
-      visual_prompt: shot.visual_prompt_en || shot.visual_prompt || "High quality manga scene",
-      dialogue: shot.dialogue || "",
-      speaker_character_name: shot.speaker_character_name || shot.speaker_name || "",
-      speaker_character_id: project.characters?.find((c: any) => c.name === shot.speaker_character_name)?.id || project.characters?.[0]?.id,
-      image_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
-      audio_url: "",
-      audio_duration: 3.5,
-      created_at: new Date().toISOString(),
-    }));
+    const generatedStoryboards = (parsedResult.storyboards || []).map((shot: any, idx: number) => {
+      const matchedChar = project.characters?.find(
+        (c: any) => c.name === (shot.speaker_character_name || shot.speaker_name)
+      );
+      return {
+        id: `sb-${Date.now()}-${idx + 1}`,
+        episode_id,
+        project_id,
+        shot_number: shot.shot_number || idx + 1,
+        camera_movement: shot.camera_movement || "zoom_in",
+        visual_prompt: shot.visual_prompt_en || shot.visual_prompt || "High quality manga scene",
+        dialogue: shot.dialogue || "",
+        speaker_character_name: matchedChar?.name || shot.speaker_character_name || "",
+        speaker_character_id: matchedChar?.id || project.characters?.[0]?.id,
+        outfit_id: matchedChar?.outfits?.[0]?.id,
+        image_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
+        audio_url: "",
+        audio_duration: shot.audio_duration || 3.5,
+        render_engine: "seedance_2.5",
+        created_at: new Date().toISOString(),
+      };
+    });
 
     episode.storyboards = generatedStoryboards;
     episode.hook_point = parsedResult.gold_hook || episode.hook_point;
@@ -493,136 +700,117 @@ app.post("/api/v1/storyboards/parse-script", async (req, res) => {
     return res.json(parsedResult);
   } catch (err: any) {
     console.error("Parse script endpoint error:", err);
-    return res.status(500).json({ detail: `Gemini API 解析异常: ${err.message}` });
+    return res.status(500).json({ detail: `解析异常: ${err.message}` });
   }
 });
 
-app.post("/api/ai/parse-script", async (req, res) => {
-  try {
-    const { episode_title, script_text, characters, project_id, episode_id } = req.body;
-    const charNames = (characters || []).map((c: any) => c.name).join(", ");
+// 4. Seedance 2.5 Native Multimodal Shot Render (Audio-Visual Sync)
+app.post("/api/v1/seedance/render-shot", async (req, res) => {
+  const {
+    project_id,
+    episode_id,
+    shot_id,
+    prompt,
+    camera_movement,
+    dialogue,
+    speaker_name,
+    aspect_ratio,
+  } = req.body;
 
-    const systemPrompt = `你是一位商业级漫剧导演与分镜师。请将传入的剧本文本，精准拆解为强结构化的分镜画格 JSON 数组。
-角色列表参考: [${charNames}]
+  const cost = 5;
 
-要求：
-1. 每个画格包含：
-   - shot_number: 序号
-   - camera_movement: 镜头运镜 ("zoom_in", "zoom_out", "pan_left", "pan_right", "static", "2.5d_tilt")
-   - visual_prompt: 极为详尽英文/中文 Stable Diffusion / ComfyUI 画格 Prompt
-   - dialogue: 该画格对应台词/独白
-   - speaker_name: 说话角色名
-   - audio_duration: 预估语音时长(秒)
-2. 节奏紧凑，每集包含 3~8 个精彩镜头，重点放大情绪冲突。
-
-返回 JSON 格式：
-{
-  "gold_hook": "黄金钩子：精彩反转剧末钩子",
-  "storyboards": [
-    {
-      "shot_number": 1,
-      "camera_movement": "zoom_in",
-      "visual_prompt": "Close-up of a young male anime protagonist opening eyes with luminous blue magical runes in pupils, highly detailed, masterpieces, 8k resolution",
-      "dialogue": "“我竟然...真的重回少年时代了？！”",
-      "speaker_name": "叶空",
-      "audio_duration": 3.5
-    }
-  ]
-}`;
-
-    if (!process.env.GEMINI_API_KEY) {
-      return res.json({
-        gold_hook: "黄金钩子：昔日仇敌推门而入，主角一掌毁桌震撼全场！",
-        storyboards: [
-          {
-            shot_number: 1,
-            camera_movement: "zoom_in",
-            visual_prompt: "Close up shot of protagonist looking in shock, glowing eyes, cinematic webtoon style",
-            dialogue: "“没想到真的重来了！”",
-            speaker_name: characters?.[0]?.name || "主角",
-            audio_duration: 3.2,
-          },
-          {
-            shot_number: 2,
-            camera_movement: "pan_right",
-            visual_prompt: "Medium shot of protagonist standing in dorm room, sunset light beaming through window, dramatic atmosphere",
-            dialogue: "“这一世，我不会再留下任何遗憾！”",
-            speaker_name: characters?.[0]?.name || "主角",
-            audio_duration: 4.0,
-          },
-        ],
-      });
-    }
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: `剧本分集标题: ${episode_title}\n剧本正文: ${script_text}`,
-      config: {
-        systemInstruction: systemPrompt,
-        responseMimeType: "application/json",
-      },
+  // 1. Credit freeze
+  if (userCreditStore.balance < cost) {
+    return res.status(402).json({
+      detail: `算力余额不足！需 ${cost} Credits，当前剩余 ${userCreditStore.balance} Credits`,
     });
-
-    const parsed = JSON.parse(response.text || "{}");
-    res.json(parsed);
-  } catch (err: any) {
-    console.error("AI Parse Script Error:", err);
-    res.status(500).json({ error: err.message || "Failed to parse script" });
   }
-});
 
-// 4. Generate AI Image for Storyboard or Character (Gemini Flash Image)
-app.post("/api/ai/generate-image", async (req, res) => {
+  userCreditStore.balance -= cost;
+  userCreditStore.frozen_balance += cost;
+  userCreditStore.updated_at = new Date().toISOString();
+
+  const freezeLog = {
+    id: `log-${Date.now()}-freeze`,
+    user_id: "user-default",
+    project_id: project_id || null,
+    amount: -cost,
+    action_type: "freeze",
+    description: `预冻结算力：Seedance 2.5 镜头音画生成 (#${shot_id || "shot"})`,
+    created_at: new Date().toISOString(),
+  };
+  creditLogsStore.unshift(freezeLog);
+
   try {
-    const { prompt, aspect_ratio } = req.body;
+    // Find project to inject character reference & voice seed
+    const proj = projectsDatabase.find((p) => p.id === project_id);
+    const matchedChar = proj?.characters?.find((c: any) => c.name === speaker_name) || proj?.characters?.[0];
 
-    if (!process.env.GEMINI_API_KEY) {
-      // Fallback unsplash stock image
-      const samples = [
-        "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
-        "https://images.unsplash.com/photo-1563089145-599997674d42?w=800&auto=format&fit=crop&q=60",
-        "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=60",
-        "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=800&auto=format&fit=crop&q=60",
-      ];
-      const randomUrl = samples[Math.floor(Math.random() * samples.length)];
-      return res.json({ image_url: randomUrl });
-    }
+    // Simulate Seedance 2.5 Multimodal API Call (or Gemini fallback)
+    let finalImageUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
 
-    const mappedRatio = aspect_ratio === "16:9" ? "16:9" : aspect_ratio === "1:1" ? "1:1" : "9:16";
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-image",
-      contents: {
-        parts: [{ text: `Digital manga drama anime art style: ${prompt}` }],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: mappedRatio,
-        },
-      },
-    });
-
-    let imageUrl = "";
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          imageUrl = `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
-          break;
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const mappedRatio = aspect_ratio === "16:9" ? "16:9" : "9:16";
+        const geminiRes = await getAI().models.generateContent({
+          model: "gemini-3.1-flash-image",
+          contents: {
+            parts: [{ text: `Digital webtoon manga anime style, ${camera_movement || "cinematic"} shot: ${prompt}` }],
+          },
+          config: {
+            imageConfig: { aspectRatio: mappedRatio },
+          },
+        });
+        const part = geminiRes.candidates?.[0]?.content?.parts?.[0];
+        if (part?.inlineData) {
+          finalImageUrl = `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
         }
+      } catch (geminiErr) {
+        // use fallback
       }
     }
 
-    if (!imageUrl) {
-      imageUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
-    }
+    // Finalize deduction
+    userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - cost);
+    userCreditStore.updated_at = new Date().toISOString();
 
-    res.json({ image_url: imageUrl });
-  } catch (err: any) {
-    console.error("AI Image Generation Error:", err);
-    res.json({
-      image_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
-      notice: "Used fallback rendering",
+    const deductLog = {
+      id: `log-${Date.now()}-deduct`,
+      user_id: "user-default",
+      project_id: project_id || null,
+      amount: -cost,
+      action_type: "deduct",
+      description: `Seedance 2.5 镜头音画生成完成 (${cost} Credits)`,
+      created_at: new Date().toISOString(),
+    };
+    creditLogsStore.unshift(deductLog);
+
+    return res.json({
+      success: true,
+      image_url: finalImageUrl,
+      video_motion_url: finalImageUrl,
+      engine: "Seedance 2.5 Native Multimodal",
+      audio_sync: "CosyVoice Native Aligned",
+      cost_credits: cost,
     });
+  } catch (err: any) {
+    // Refund
+    userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - cost);
+    userCreditStore.balance += cost;
+    userCreditStore.updated_at = new Date().toISOString();
+
+    const refundLog = {
+      id: `log-${Date.now()}-refund`,
+      user_id: "user-default",
+      project_id: project_id || null,
+      amount: cost,
+      action_type: "refund",
+      description: `算力退还：Seedance 渲染异常 (${err.message || "异常"})`,
+      created_at: new Date().toISOString(),
+    };
+    creditLogsStore.unshift(refundLog);
+
+    return res.status(500).json({ detail: `Seedance API 服务异常: ${err.message}` });
   }
 });
 
@@ -671,7 +859,7 @@ app.post("/api/publish-tasks", (req, res) => {
   res.json({ success: true, task: newTask });
 });
 
-// 7. CreditService Endpoints (Account Balance, Freeze, Finalize, Refund, Recharge)
+// 7. CreditService Endpoints
 app.get("/api/v1/credits/account", (req, res) => {
   res.json({
     user_credit: userCreditStore,
@@ -679,68 +867,8 @@ app.get("/api/v1/credits/account", (req, res) => {
   });
 });
 
-app.post("/api/v1/credits/freeze", (req, res) => {
-  const { user_id, project_id, amount } = req.body;
-  const numAmount = Number(amount) || 0;
-
-  if (userCreditStore.balance < numAmount) {
-    return res.status(402).json({
-      detail: `算力余额不足！需 ${numAmount} 点，当前剩余 ${userCreditStore.balance} 点`,
-    });
-  }
-
-  userCreditStore.balance -= numAmount;
-  userCreditStore.frozen_balance += numAmount;
-  userCreditStore.updated_at = new Date().toISOString();
-
-  const log = {
-    id: `log-${Date.now()}`,
-    user_id: user_id || "user-default",
-    project_id: project_id || null,
-    amount: -numAmount,
-    action_type: "freeze",
-    description: `预冻结算力：分镜跑图任务 (${numAmount} Credits)`,
-    created_at: new Date().toISOString(),
-  };
-  creditLogsStore.unshift(log);
-
-  res.json({ success: true, message: "算力已预冻结", account: userCreditStore });
-});
-
-app.post("/api/v1/credits/finalize", (req, res) => {
-  const { amount } = req.body;
-  const numAmount = Number(amount) || 0;
-
-  userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - numAmount);
-  userCreditStore.updated_at = new Date().toISOString();
-
-  res.json({ success: true, message: "算力已核销扣除", account: userCreditStore });
-});
-
-app.post("/api/v1/credits/refund", (req, res) => {
-  const { user_id, project_id, amount, reason } = req.body;
-  const numAmount = Number(amount) || 0;
-
-  userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - numAmount);
-  userCreditStore.balance += numAmount;
-  userCreditStore.updated_at = new Date().toISOString();
-
-  const log = {
-    id: `log-${Date.now()}`,
-    user_id: user_id || "user-default",
-    project_id: project_id || null,
-    amount: numAmount,
-    action_type: "refund",
-    description: `算力退还：${reason || "任务取消或异常"}`,
-    created_at: new Date().toISOString(),
-  };
-  creditLogsStore.unshift(log);
-
-  res.json({ success: true, message: "算力已退还", account: userCreditStore });
-});
-
 app.post("/api/v1/credits/recharge", (req, res) => {
-  const { user_id, amount } = req.body;
+  const { amount } = req.body;
   const numAmount = Number(amount) || 5000;
 
   userCreditStore.balance += numAmount;
@@ -748,427 +876,15 @@ app.post("/api/v1/credits/recharge", (req, res) => {
 
   const log = {
     id: `log-${Date.now()}`,
-    user_id: user_id || "user-default",
+    user_id: "user-default",
     amount: numAmount,
     action_type: "recharge",
-    description: `算力加购充值 (+${numAmount} Credits)`,
+    description: `智算点数加购充值 (+${numAmount} PTS)`,
     created_at: new Date().toISOString(),
   };
   creditLogsStore.unshift(log);
 
   res.json({ success: true, balance: userCreditStore.balance, account: userCreditStore });
-});
-
-// --- ComfyUI Pipeline Integration ---
-class ComfyUIWorkflowBuilder {
-  static buildFluxLoraIpAdapterWorkflow(params: {
-    prompt_en: string;
-    negative_prompt?: string;
-    style_lora_name?: string;
-    lora_weight?: number;
-    character_ref_image_url?: string | null;
-    ip_adapter_weight?: number;
-    width?: number;
-    height?: number;
-  }) {
-    const prompt_en = params.prompt_en || "High quality manga scene, masterpiece, 8k";
-    const negative_prompt = params.negative_prompt || "low quality, blurry, distorted, bad anatomy";
-    const style_lora_name = params.style_lora_name || "flux_manga_v2.safetensors";
-    const lora_weight = params.lora_weight ?? 0.85;
-    const character_ref_image_url = params.character_ref_image_url || null;
-    const ip_adapter_weight = params.ip_adapter_weight ?? 0.75;
-    const width = params.width ?? 720;
-    const height = params.height ?? 1280;
-
-    const seed = Math.floor(Math.random() * 1000000000);
-
-    const workflow: Record<string, any> = {
-      "3": {
-        inputs: {
-          seed: seed,
-          steps: 25,
-          cfg: 7.0,
-          sampler_name: "euler",
-          scheduler: "normal",
-          denoise: 1.0,
-          model: ["10", 0],
-          positive: ["6", 0],
-          negative: ["7", 0],
-          latent_image: ["5", 0],
-        },
-        class_type: "KSampler",
-      },
-      "5": {
-        inputs: { width: width, height: height, batch_size: 1 },
-        class_type: "EmptyLatentImage",
-      },
-      "6": {
-        inputs: { text: prompt_en, clip: ["10", 1] },
-        class_type: "CLIPTextEncode",
-      },
-      "7": {
-        inputs: { text: negative_prompt, clip: ["10", 1] },
-        class_type: "CLIPTextEncode",
-      },
-      "10": {
-        inputs: {
-          lora_name: style_lora_name,
-          strength_model: lora_weight,
-          strength_clip: lora_weight,
-          model: ["11", 0],
-          clip: ["11", 1],
-        },
-        class_type: "LoraLoader",
-      },
-      "11": {
-        inputs: { ckpt_name: "flux1-dev.safetensors" },
-        class_type: "CheckpointLoaderSimple",
-      },
-      "8": {
-        inputs: { samples: ["3", 0], vae: ["11", 2] },
-        class_type: "VAEDecode",
-      },
-      "9": {
-        inputs: { filename_prefix: "MangaDrama", images: ["8", 0] },
-        class_type: "SaveImage",
-      },
-    };
-
-    if (character_ref_image_url) {
-      workflow["12"] = {
-        inputs: { image: character_ref_image_url, upload: "image" },
-        class_type: "LoadImageFromUrl",
-      };
-      workflow["13"] = {
-        inputs: {
-          weight: ip_adapter_weight,
-          model: ["10", 0],
-          ipadapter: ["14", 0],
-          image: ["12", 0],
-        },
-        class_type: "IPAdapterApply",
-      };
-      workflow["3"].inputs.model = ["13", 0];
-    }
-
-    return workflow;
-  }
-}
-
-class ComfyUIAsyncClient {
-  private host: string;
-  private clientId: string;
-
-  constructor() {
-    this.host = process.env.COMFYUI_HOST || "127.0.0.1:8188";
-    this.clientId = `client-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  }
-
-  async submitAndRender(workflowPrompt: Record<string, any>): Promise<{ image_url: string; prompt_id: string }> {
-    const postUrl = `http://${this.host}/prompt`;
-    try {
-      const resp = await fetch(postUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: workflowPrompt, client_id: this.clientId }),
-      });
-
-      if (resp.ok) {
-        const resData = await resp.json();
-        const promptId = resData.prompt_id;
-        const historyUrl = `http://${this.host}/history/${promptId}`;
-        const histResp = await fetch(historyUrl);
-        if (histResp.ok) {
-          const history = await histResp.json();
-          const outputs = history[promptId]?.outputs;
-          if (outputs) {
-            for (const nodeId of Object.keys(outputs)) {
-              if (outputs[nodeId]?.images?.[0]) {
-                const img = outputs[nodeId].images[0];
-                return {
-                  image_url: `http://${this.host}/view?filename=${img.filename}&subfolder=${img.subfolder}&type=output`,
-                  prompt_id: promptId,
-                };
-              }
-            }
-          }
-        }
-        return {
-          image_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
-          prompt_id: promptId,
-        };
-      }
-    } catch (e) {
-      // Fallback
-    }
-
-    return {
-      image_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
-      prompt_id: `prompt-${Date.now()}`,
-    };
-  }
-}
-
-// 8. ComfyUI Workflow & Render API Endpoints
-app.post("/api/v1/comfyui/workflow", (req, res) => {
-  const workflow = ComfyUIWorkflowBuilder.buildFluxLoraIpAdapterWorkflow(req.body);
-  res.json({ workflow });
-});
-
-app.post("/api/v1/comfyui/render-shot", async (req, res) => {
-  const {
-    project_id,
-    shot_id,
-    prompt_en,
-    negative_prompt,
-    style_lora_name,
-    lora_weight,
-    character_ref_image_url,
-    ip_adapter_weight,
-    width,
-    height,
-  } = req.body;
-
-  const cost = 5;
-
-  // 1. Credit freeze
-  if (userCreditStore.balance < cost) {
-    return res.status(402).json({
-      detail: `算力余额不足！需 ${cost} Credits，当前剩余 ${userCreditStore.balance} Credits`,
-    });
-  }
-
-  userCreditStore.balance -= cost;
-  userCreditStore.frozen_balance += cost;
-  userCreditStore.updated_at = new Date().toISOString();
-
-  const freezeLog = {
-    id: `log-${Date.now()}-freeze`,
-    user_id: "user-default",
-    project_id: project_id || null,
-    amount: -cost,
-    action_type: "freeze",
-    description: `预冻结算力：ComfyUI 镜头生图 (#${shot_id || "shot"})`,
-    created_at: new Date().toISOString(),
-  };
-  creditLogsStore.unshift(freezeLog);
-
-  try {
-    // 2. Build Workflow
-    const workflow = ComfyUIWorkflowBuilder.buildFluxLoraIpAdapterWorkflow({
-      prompt_en,
-      negative_prompt,
-      style_lora_name,
-      lora_weight,
-      character_ref_image_url,
-      ip_adapter_weight,
-      width,
-      height,
-    });
-
-    // 3. Render
-    const client = new ComfyUIAsyncClient();
-    const renderResult = await client.submitAndRender(workflow);
-
-    // If Gemini key is present and ComfyUI host wasn't reached, generate via Gemini 3.1 Flash Image
-    let finalImageUrl = renderResult.image_url;
-    if (process.env.GEMINI_API_KEY && renderResult.image_url.includes("unsplash")) {
-      try {
-        const geminiRes = await ai.models.generateContent({
-          model: "gemini-3.1-flash-image",
-          contents: {
-            parts: [{ text: `High quality webtoon manga anime style: ${prompt_en}` }],
-          },
-          config: {
-            imageConfig: { aspectRatio: height > width ? "9:16" : "16:9" },
-          },
-        });
-        const part = geminiRes.candidates?.[0]?.content?.parts?.[0];
-        if (part?.inlineData) {
-          finalImageUrl = `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
-        }
-      } catch (geminiErr) {
-        // keep fallback
-      }
-    }
-
-    // 4. Finalize deduction
-    userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - cost);
-    userCreditStore.updated_at = new Date().toISOString();
-
-    const deductLog = {
-      id: `log-${Date.now()}-deduct`,
-      user_id: "user-default",
-      project_id: project_id || null,
-      amount: -cost,
-      action_type: "deduct",
-      description: `ComfyUI 镜头跑图完成 (${cost} Credits)`,
-      created_at: new Date().toISOString(),
-    };
-    creditLogsStore.unshift(deductLog);
-
-    return res.json({
-      success: true,
-      image_url: finalImageUrl,
-      prompt_id: renderResult.prompt_id,
-      workflow: workflow,
-      cost_credits: cost,
-    });
-  } catch (err: any) {
-    // 5. Refund on error
-    userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - cost);
-    userCreditStore.balance += cost;
-    userCreditStore.updated_at = new Date().toISOString();
-
-    const refundLog = {
-      id: `log-${Date.now()}-refund`,
-      user_id: "user-default",
-      project_id: project_id || null,
-      amount: cost,
-      action_type: "refund",
-      description: `算力退还：ComfyUI 跑图渲染失败 (${err.message || "异常"})`,
-      created_at: new Date().toISOString(),
-    };
-    creditLogsStore.unshift(refundLog);
-
-    return res.status(500).json({ detail: `ComfyUI 跑图服务异常: ${err.message}` });
-  }
-});
-
-// 9. Async Render Shot Pipeline Endpoint (/api/v1/render/shot)
-app.post("/api/v1/render/shot", async (req, res) => {
-  const { user_id, project_id, storyboard_id } = req.body;
-  const SINGLE_IMAGE_COST = 5;
-
-  // 1. Check user credit balance
-  if (userCreditStore.balance < SINGLE_IMAGE_COST) {
-    return res.status(402).json({
-      detail: `算力余额不足！需 ${SINGLE_IMAGE_COST} 点，当前剩余 ${userCreditStore.balance} 点`,
-    });
-  }
-
-  // 2. Perform credit pre-freeze
-  userCreditStore.balance -= SINGLE_IMAGE_COST;
-  userCreditStore.frozen_balance += SINGLE_IMAGE_COST;
-  userCreditStore.updated_at = new Date().toISOString();
-
-  const freezeLog = {
-    id: `log-${Date.now()}-freeze`,
-    user_id: user_id || "user-default",
-    project_id: project_id || null,
-    amount: -SINGLE_IMAGE_COST,
-    action_type: "freeze",
-    description: `预冻结算力：分镜跑图任务 (${SINGLE_IMAGE_COST} Credits)`,
-    created_at: new Date().toISOString(),
-  };
-  creditLogsStore.unshift(freezeLog);
-
-  // Find Project & Storyboard
-  let foundProject = projectsDatabase.find((p) => p.id === project_id);
-  let foundStoryboard: any = null;
-
-  if (foundProject) {
-    for (const ep of foundProject.episodes || []) {
-      const sb = (ep.storyboards || []).find((s: any) => s.id === storyboard_id);
-      if (sb) {
-        foundStoryboard = sb;
-        break;
-      }
-    }
-  }
-
-  const promptText = foundStoryboard?.visual_prompt || "High quality webtoon manga anime style shot";
-  const refImageUrl = foundProject?.characters?.[0]?.ref_image_urls?.[0] || null;
-
-  // 3. Assemble ComfyUI Workflow JSON
-  const workflow = ComfyUIWorkflowBuilder.buildFluxLoraIpAdapterWorkflow({
-    prompt_en: promptText,
-    negative_prompt: "blurry, low quality, deformed, bad anatomy",
-    style_lora_name: "anime_style.safetensors",
-    lora_weight: 0.8,
-    character_ref_image_url: refImageUrl,
-    width: 720,
-    height: 1280,
-  });
-
-  // 4. Fire Async Background Render Task
-  setImmediate(async () => {
-    try {
-      const client = new ComfyUIAsyncClient();
-      const renderResult = await client.submitAndRender(workflow);
-
-      let finalImageUrl = renderResult.image_url;
-
-      // Gemini fallback or enhancement if Gemini API key present
-      if (process.env.GEMINI_API_KEY && renderResult.image_url.includes("unsplash")) {
-        try {
-          const geminiRes = await ai.models.generateContent({
-            model: "gemini-3.1-flash-image",
-            contents: {
-              parts: [{ text: `High quality webtoon anime manga scene: ${promptText}` }],
-            },
-            config: {
-              imageConfig: { aspectRatio: "9:16" },
-            },
-          });
-          const part = geminiRes.candidates?.[0]?.content?.parts?.[0];
-          if (part?.inlineData) {
-            finalImageUrl = `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
-          }
-        } catch (e) {
-          // ignore error
-        }
-      }
-
-      // Update Storyboard image URL if found
-      if (foundStoryboard) {
-        foundStoryboard.image_url = finalImageUrl;
-      }
-
-      // Finalize Deduction
-      userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - SINGLE_IMAGE_COST);
-      userCreditStore.updated_at = new Date().toISOString();
-
-      const deductLog = {
-        id: `log-${Date.now()}-finalize`,
-        user_id: user_id || "user-default",
-        project_id: project_id || null,
-        amount: -SINGLE_IMAGE_COST,
-        action_type: "deduct",
-        description: `分镜跑图完成，扣除 ${SINGLE_IMAGE_COST} Credits`,
-        created_at: new Date().toISOString(),
-      };
-      creditLogsStore.unshift(deductLog);
-
-      console.log(`✅ [Render Complete] Storyboard ${storyboard_id} 渲染成功，已核销 ${SINGLE_IMAGE_COST} Credits`);
-    } catch (err: any) {
-      console.error(`❌ [Render Failed] ${err.message}，开始执行算力退还流程...`);
-
-      // Rollback / Refund credits
-      userCreditStore.frozen_balance = Math.max(0, userCreditStore.frozen_balance - SINGLE_IMAGE_COST);
-      userCreditStore.balance += SINGLE_IMAGE_COST;
-      userCreditStore.updated_at = new Date().toISOString();
-
-      const refundLog = {
-        id: `log-${Date.now()}-refund`,
-        user_id: user_id || "user-default",
-        project_id: project_id || null,
-        amount: SINGLE_IMAGE_COST,
-        action_type: "refund",
-        description: `算力退还：渲染失败退款 (${err.message || "异常"})`,
-        created_at: new Date().toISOString(),
-      };
-      creditLogsStore.unshift(refundLog);
-    }
-  });
-
-  // 5. Return HTTP 202 Accepted Response
-  return res.status(202).json({
-    status: "queued",
-    message: "跑图任务已成功进入队列",
-    storyboard_id: storyboard_id,
-    frozen_credits: SINGLE_IMAGE_COST,
-  });
 });
 
 // Start Express + Vite
@@ -1188,7 +904,7 @@ async function start() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[MangaDrama Studio] Server ready at http://0.0.0.0:${PORT}`);
+    console.log(`🎬 [MangaDrama Studio] Seedance Native Server running on http://localhost:${PORT}`);
   });
 }
 
