@@ -9,21 +9,7 @@ import { MarketplaceView } from "./components/matchmaking/MarketplaceView";
 import { ComplianceCenter } from "./components/compliance/ComplianceCenter";
 import { AssetCenter } from "./components/assets/AssetCenter";
 import { ComputeDashboard } from "./components/compute/ComputeDashboard";
-import { Project, Episode, ProjectCharacter, ProjectScene } from "./types";
-import {
-  Layers,
-  ShieldCheck,
-  Zap,
-  Sparkles,
-  ArrowRight,
-  FolderKanban,
-  CheckCircle2,
-  Film,
-  Lock,
-  ChevronRight,
-  FileCode2,
-  Unlock,
-} from "lucide-react";
+import { Project, Episode, ProjectCharacter, ProjectScene, STYLE_PRESET_CARDS, ThemeKey, THEME_CONFIGS } from "./types";
 
 export type StudioStage = "script_lobby" | "central_control" | "episode_studio";
 
@@ -31,11 +17,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("studio");
   const [studioStage, setStudioStage] = useState<StudioStage>("script_lobby");
 
+  // 🌟 明亮主题状态管理 (默认: 日光雅致 Daylight Amber)
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>("amber_daylight");
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [credits, setCredits] = useState(10000);
+  const [credits, setCredits] = useState(7807);
 
   // Script Generation State with Step-by-Step progress feedback
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
@@ -172,10 +161,11 @@ export default function App() {
     genre: string;
     prompt: string;
     targetEpisodes: number;
+    stylePresetId?: string;
     rawText?: string;
   }) => {
     setIsGeneratingScript(true);
-    setGenerationStepText("[1/3] Gemini 3.6 正在清洗剧本并生成黄金剧情卡点...");
+    setGenerationStepText("[1/3] Gemini 3.6 正在清洗剧本并切分黄金剧情卡点...");
 
     try {
       const res = await fetch("/api/ai/incubate-script", {
@@ -189,11 +179,15 @@ export default function App() {
       });
       const data = await res.json();
 
-      setGenerationStepText("[2/3] 正在解耦主角立绘、服装变体与专属音色 Seed...");
+      setGenerationStepText("[2/3] 正在挂载画风 LoRA，解耦主角立绘、服装与 CosyVoice 音色...");
       await new Promise((r) => setTimeout(r, 600));
 
       setGenerationStepText("[3/3] 正在立项并组装阶段二中央控制确权资产...");
       await new Promise((r) => setTimeout(r, 600));
+
+      const matchedPreset =
+        STYLE_PRESET_CARDS.find((s) => s.id === payload.stylePresetId) ||
+        STYLE_PRESET_CARDS[0];
 
       const newProjId = `proj-${Date.now()}`;
       const newEpisodes: Episode[] = (data.episodes || []).map((ep: any, idx: number) => ({
@@ -209,27 +203,31 @@ export default function App() {
       }));
 
       const newCharacters: ProjectCharacter[] = (data.main_characters || [
-        { name: "主角", gender: "男", visual_description: "黑发修长，双眸如电", default_outfit: "黑风衣" }
+        { name: "主角", gender: "男", visual_description: "五官深邃立体，目光如炬", default_outfit: "黑风衣" },
       ]).map((mc: any, idx: number) => ({
         id: `char-${Date.now()}-${idx}`,
         project_id: newProjId,
         name: mc.name || "主角",
         gender: mc.gender || "男",
-        visual_description: mc.visual_description || "五官深邃立体",
+        visual_description: `${mc.visual_description || "五官深邃立体"} [画风锁定: ${matchedPreset.name}]`,
         ref_image_urls: [
-          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=60",
+          matchedPreset.preview_image,
+          "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=60",
+          "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=60",
         ],
         outfits: [
           {
             id: `outfit-${Date.now()}-${idx}-1`,
-            name: mc.default_outfit || "默认常服",
-            description: "日常装束",
+            name: mc.default_outfit || "基础常服",
+            description: `日常装束 · 遵从 ${matchedPreset.name} 视觉规范`,
+            ref_image_url: matchedPreset.preview_image,
             is_default: true,
           },
           {
             id: `outfit-${Date.now()}-${idx}-2`,
-            name: "高潮战斗装",
-            description: "打斗场景服装解耦",
+            name: "高潮战斗/宴会特殊装",
+            description: `特殊场景服装解耦 · 遵从 ${matchedPreset.name} 视觉规范`,
+            ref_image_url: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400",
             is_default: false,
           },
         ],
@@ -243,28 +241,36 @@ export default function App() {
         user_id: "usr-current",
         title: `${payload.genre}：${payload.prompt?.slice(0, 14) || "爆款新剧"}`,
         description: payload.prompt || "Seedance 2.5 原生多模态漫剧工程",
-        cover_url:
-          "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
+        cover_url: matchedPreset.preview_image,
         aspect_ratio: "9:16",
-        style_preset: payload.genre,
-        is_assets_locked: false,
-        global_style_config: {
-          base_model: "Seedance 2.5 Multimodal Engine",
-          style_lora: `${payload.genre}_Masterpiece (Weight: 0.85)`,
-          negative_prompt: "blurry, low quality, bad anatomy, deformed face, distorted hands",
-        },
+        style_preset: matchedPreset.name,
         status: "draft",
+        is_assets_locked: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        global_style_config: {
+          base_model: "Seedance 2.5 Multimodal Engine",
+          style_lora: matchedPreset.lora_id,
+          negative_prompt: matchedPreset.default_negative,
+        },
         characters: newCharacters,
         scenes: [
           {
             id: `scene-${Date.now()}-1`,
             project_id: newProjId,
-            name: "主剧情大厅/核心场景",
-            description: "光影戏剧化的高潮对决主场景",
-            env_prompt: "Cinematic anime scenic background, dramatic sunset, Unreal Engine 5",
+            name: "核心主场景一",
+            description: `主线冲突发生地 · 遵从 ${matchedPreset.name} 风格渲染`,
+            env_prompt: `Dramatic cinematic scenery in ${matchedPreset.name} style, high quality dynamic lighting`,
             ref_image_url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=600",
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: `scene-${Date.now()}-2`,
+            project_id: newProjId,
+            name: "高潮对决场景二",
+            description: `反转与决战场景 · 遵从 ${matchedPreset.name} 风格渲染`,
+            env_prompt: `Epic battle confrontation space, grunge and neon atmosphere in ${matchedPreset.name} style`,
+            ref_image_url: "https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?w=600",
             created_at: new Date().toISOString(),
           },
         ],
@@ -277,71 +283,58 @@ export default function App() {
         setCurrentEpisode(newEpisodes[0]);
       }
 
-      // 整页跳转到阶段二：中央控制台
+      // 自动跳转到阶段二确权
       setStudioStage("central_control");
     } catch (err) {
       console.error(err);
-      alert("剧本生成异常，已载入默认大纲");
+      alert("立项生成异常，请检查网络后重试");
     } finally {
       setIsGeneratingScript(false);
       setGenerationStepText("");
     }
   };
 
-  const handleUpdateEpisode = (updatedEp: Episode) => {
+  const handleUpdateEpisode = async (updatedEp: Episode) => {
     if (!currentProject) return;
-    const updatedEpisodes = currentProject.episodes?.map((ep) =>
+    setCurrentEpisode(updatedEp);
+    const updatedEpisodes = currentProject.episodes.map((ep) =>
       ep.id === updatedEp.id ? updatedEp : ep
     );
-    const updatedProject = { ...currentProject, episodes: updatedEpisodes };
-    setCurrentProject(updatedProject);
-    setCurrentEpisode(updatedEp);
-    setProjects(projects.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+    const updatedProj = { ...currentProject, episodes: updatedEpisodes };
+    setCurrentProject(updatedProj);
+    setProjects(projects.map((p) => (p.id === updatedProj.id ? updatedProj : p)));
+
+    try {
+      await fetch(`/api/episodes/${updatedEp.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedEp),
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleBreakdownScript = async () => {
     if (!currentEpisode || !currentProject) return;
     setIsParsingScript(true);
     try {
-      const res = await fetch("/api/v1/storyboards/parse-script", {
+      const res = await fetch(`/api/episodes/${currentEpisode.id}/breakdown-script`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          project_id: currentProject.id,
-          episode_id: currentEpisode.id,
-          raw_script_text: currentEpisode.raw_script,
+          raw_script: currentEpisode.raw_script,
+          style_preset: currentProject.style_preset,
         }),
       });
       const data = await res.json();
-
       if (data.storyboards) {
-        const storyboards = data.storyboards.map((sb: any, idx: number) => ({
-          id: `sb-${Date.now()}-${idx + 1}`,
-          episode_id: currentEpisode.id,
-          project_id: currentProject.id,
-          shot_number: sb.shot_number || idx + 1,
-          camera_movement: sb.camera_movement || "zoom_in",
-          visual_prompt: sb.visual_prompt_en || sb.visual_prompt || "Manga drama scene",
-          dialogue: sb.dialogue || "",
-          speaker_character_name: sb.speaker_character_name || sb.speaker_name || "",
-          speaker_character_id:
-            currentProject.characters?.find(
-              (c) => c.name === (sb.speaker_character_name || sb.speaker_name)
-            )?.id || currentProject.characters?.[0]?.id,
-          image_url:
-            sb.image_url ||
-            "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60",
-          audio_duration: sb.audio_duration || 3.5,
-          render_engine: "seedance_2.5",
-          created_at: new Date().toISOString(),
-        }));
-
-        handleUpdateEpisode({
+        const updatedEp: Episode = {
           ...currentEpisode,
-          storyboards,
-          hook_point: data.gold_hook || currentEpisode.hook_point,
-          status: "parsed",
-        });
+          storyboards: data.storyboards,
+          status: "ready",
+        };
+        handleUpdateEpisode(updatedEp);
       }
     } catch (err) {
       console.error(err);
@@ -350,114 +343,28 @@ export default function App() {
     }
   };
 
-  const isAssetsLocked = currentProject?.is_assets_locked ?? false;
-
   return (
-    <div className="min-h-screen bg-[#0A0A0C] text-slate-100 font-sans antialiased selection:bg-orange-500 selection:text-white pb-16">
-      {/* Top Navbar */}
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-orange-500 selection:text-white">
+      {/* 1. Global Navigation Bar (晶透明亮风格) */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={(t) => {
-          setActiveTab(t);
-        }}
+        setActiveTab={setActiveTab}
         projects={projects}
         currentProject={currentProject}
-        setCurrentProject={(p) => {
-          setCurrentProject(p);
-          if (p.episodes?.length > 0) setCurrentEpisode(p.episodes[0]);
-        }}
+        setCurrentProject={setCurrentProject}
         currentEpisode={currentEpisode}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
         credits={credits}
+        currentTheme={currentTheme}
+        onSelectTheme={setCurrentTheme}
       />
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* TAB 1: STUDIO (3-STAGE INDEPENDENT STEP WIZARD ROUTING) */}
+      {/* 2. Full-Screen Main Workspace Container (移除 max-w-7xl 束缚，100% 满屏通栏) */}
+      <main className="flex-1 w-full flex flex-col overflow-hidden">
+        {/* TAB 1: MANGA DRAMA STUDIO (3 STAGES FULL SCREEN) */}
         {activeTab === "studio" && (
-          <div className="space-y-6">
-            {/* Step Wizard Progress Breadcrumb Bar */}
-            <div className="bg-[#16161A] border border-white/10 rounded-2xl p-2.5 flex items-center justify-between flex-wrap gap-2 text-xs shadow-xl">
-              <div className="flex items-center space-x-2">
-                {/* Step 1 Tab Button */}
-                <button
-                  onClick={() => setStudioStage("script_lobby")}
-                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer ${
-                    studioStage === "script_lobby"
-                      ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
-                      : "text-slate-400 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center text-[10px]">
-                    01
-                  </span>
-                  <span>漫剧项目大厅与剧本立项</span>
-                </button>
-
-                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-
-                {/* Step 2 Tab Button */}
-                <button
-                  onClick={() => {
-                    if (currentProject) setStudioStage("central_control");
-                  }}
-                  disabled={!currentProject}
-                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer disabled:opacity-30 ${
-                    studioStage === "central_control"
-                      ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
-                      : "text-slate-400 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center text-[10px]">
-                    02
-                  </span>
-                  <span>中央控制台 · 资产确权</span>
-                  {isAssetsLocked ? (
-                    <Lock className="w-3 h-3 text-green-400" />
-                  ) : (
-                    <Unlock className="w-3 h-3 text-amber-400" />
-                  )}
-                </button>
-
-                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-
-                {/* Step 3 Tab Button */}
-                <button
-                  onClick={() => {
-                    if (currentProject && isAssetsLocked) {
-                      setStudioStage("episode_studio");
-                    } else if (currentProject && !isAssetsLocked) {
-                      alert("⚠️ 请先在【阶段二：中央控制台】确认并一键锁定资产后，再进入阶段三制作室！");
-                    }
-                  }}
-                  disabled={!currentProject}
-                  className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer disabled:opacity-30 ${
-                    studioStage === "episode_studio"
-                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
-                      : isAssetsLocked
-                      ? "text-slate-300 hover:text-white hover:bg-white/5"
-                      : "text-slate-500 cursor-not-allowed"
-                  }`}
-                >
-                  <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center text-[10px]">
-                    03
-                  </span>
-                  <span>分集流水线 · Seedance 制作室</span>
-                </button>
-              </div>
-
-              {/* Quick Project Info on right */}
-              {currentProject && (
-                <div className="text-[11px] text-slate-400 flex items-center gap-2 pr-2">
-                  <span>当前项目:</span>
-                  <span className="text-slate-200 font-semibold bg-black/40 px-2 py-0.5 rounded border border-white/10">
-                    {currentProject.title}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* PAGE 1: SCRIPT & PROJECT LOBBY */}
+          <div className="flex-1 w-full flex flex-col">
+            {/* PAGE 1: SCRIPT & PROJECT LOBBY (全屏双翼项目大厅) */}
             {studioStage === "script_lobby" && (
               <ScriptImporter
                 projects={projects}
@@ -474,7 +381,7 @@ export default function App() {
               />
             )}
 
-            {/* PAGE 2: CENTRAL CONTROL GATEKEEPER PANEL */}
+            {/* PAGE 2: CENTRAL CONTROL GATEKEEPER PANEL (全屏中央资产确权室) */}
             {studioStage === "central_control" && currentProject && (
               <CentralControlPanel
                 project={currentProject}
@@ -489,7 +396,7 @@ export default function App() {
               />
             )}
 
-            {/* PAGE 3: TIMELINE & SEEDANCE MULTIMODAL STUDIO */}
+            {/* PAGE 3: TIMELINE & SEEDANCE MULTIMODAL STUDIO (全屏 4 大板块影视工业制作室) */}
             {studioStage === "episode_studio" && currentProject && (
               currentEpisode ? (
                 <TimelineEditor
@@ -502,11 +409,11 @@ export default function App() {
                   onNavigateTab={setActiveTab}
                 />
               ) : (
-                <div className="bg-[#16161A] border border-white/10 rounded-2xl p-12 text-center text-slate-400 space-y-3">
-                  <p>当前项目暂无分集数据，请返回阶段二添加分集或返回阶段一大厅导入剧本。</p>
+                <div className="w-full flex-1 flex flex-col items-center justify-center p-12 text-center text-slate-500 space-y-4 bg-white">
+                  <p className="text-sm font-semibold">当前项目暂无分集数据，请返回阶段二添加分集或返回阶段一大厅立项。</p>
                   <button
                     onClick={() => setStudioStage("central_control")}
-                    className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-xs"
+                    className="bg-black hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl text-xs cursor-pointer shadow-md transition-all"
                   >
                     返回中央控制台
                   </button>
@@ -517,23 +424,41 @@ export default function App() {
         )}
 
         {/* TAB 2: PUBLISHING MATRIX */}
-        {activeTab === "publishing" && <PublishingMatrix project={currentProject} />}
+        {activeTab === "publishing" && (
+          <div className="w-full p-6 flex-1">
+            <PublishingMatrix project={currentProject} />
+          </div>
+        )}
 
         {/* TAB 3: MATCHMAKING MARKETPLACE */}
-        {activeTab === "marketplace" && <MarketplaceView />}
+        {activeTab === "marketplace" && (
+          <div className="w-full p-6 flex-1">
+            <MarketplaceView />
+          </div>
+        )}
 
         {/* TAB 4: COMPLIANCE CENTER */}
-        {activeTab === "compliance" && <ComplianceCenter />}
+        {activeTab === "compliance" && (
+          <div className="w-full p-6 flex-1">
+            <ComplianceCenter />
+          </div>
+        )}
 
         {/* TAB 5: INSPIRATION & ASSET CENTER */}
-        {activeTab === "assets" && <AssetCenter />}
+        {activeTab === "assets" && (
+          <div className="w-full p-6 flex-1">
+            <AssetCenter />
+          </div>
+        )}
 
         {/* TAB 6: COMPUTE DASHBOARD */}
         {activeTab === "compute" && (
-          <ComputeDashboard
-            credits={credits}
-            onTopUpCredits={(amount) => setCredits((c) => c + amount)}
-          />
+          <div className="w-full p-6 flex-1">
+            <ComputeDashboard
+              credits={credits}
+              onTopUpCredits={(amount) => setCredits((c) => c + amount)}
+            />
+          </div>
         )}
       </main>
 

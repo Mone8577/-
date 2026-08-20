@@ -33,6 +33,7 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  Palette,
 } from "lucide-react";
 import { Project, ProjectCharacter, ProjectScene, Episode, CharacterOutfit } from "../../types";
 
@@ -199,15 +200,15 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
   };
 
   return (
-    <div className="bg-[#F8F9FA] text-slate-800 rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col font-sans select-none min-h-[calc(100vh-100px)] animate-fadeIn space-y-0">
+    <div className="flex-1 w-full bg-[#F8FAFC] text-slate-800 flex flex-col font-sans select-none min-h-[calc(100vh-56px)] animate-fadeIn space-y-0">
       {/* ========================================================================================= */}
-      {/* 1. TOP HEADER & GATEKEEPER HEALTH BAR (对标页面3的高级浅色顶栏与确权门禁)                   */}
+      {/* 1. TOP HEADER & GATEKEEPER HEALTH BAR (明亮现代高光顶栏)                                    */}
       {/* ========================================================================================= */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+      <div className="bg-white border-b border-slate-200/80 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center space-x-3.5">
           <button
             onClick={onBackToLobby}
-            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
             title="返回阶段一大厅"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -215,17 +216,17 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                 STAGE 02
               </span>
-              <h1 className="text-lg font-extrabold text-slate-900 leading-tight">
+              <h1 className="text-base font-extrabold text-slate-900 leading-tight">
                 中央控制台 · 全局资产确权室 (Gatekeeper)
               </h1>
               <span
                 className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border flex items-center gap-1 ${
                   isLocked
-                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                    : "bg-amber-100 text-amber-800 border-amber-300 animate-pulse"
+                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    : "bg-amber-50 text-amber-800 border-amber-200"
                 }`}
               >
                 {isLocked ? (
@@ -241,8 +242,12 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
                 )}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              当前工程：<strong className="text-slate-800">{project.title}</strong> · 锁死底层画风、主角 FaceLock 三视图、服装解耦套系与 CosyVoice 专属音色
+            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>当前工程：<strong className="text-slate-800">{project.title}</strong></span>
+              <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-extrabold flex items-center gap-1">
+                <Palette className="w-3 h-3" />
+                画风基因: {project.style_preset || "3D 国漫大作"} ({project.global_style_config?.style_lora || "Xianxia_3D"})
+              </span>
             </p>
           </div>
         </div>
@@ -252,7 +257,7 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
           <button
             onClick={handleAutoRigAssets}
             disabled={isAutoRigging || isLocked}
-            className="flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl font-bold cursor-pointer disabled:opacity-40 transition-all"
+            className="flex items-center space-x-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 px-3.5 py-2 rounded-xl font-bold cursor-pointer disabled:opacity-40 transition-all shadow-2xs"
           >
             <Wand2 className="w-3.5 h-3.5 text-purple-600" />
             <span>{isAutoRigging ? "正在智能配齐..." : "一键 AI 补齐资产"}</span>
@@ -261,7 +266,7 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
           {isLocked && (
             <button
               onClick={() => onToggleLockAssets(false)}
-              className="flex items-center space-x-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-3.5 py-2 rounded-xl font-bold cursor-pointer transition-all"
+              className="flex items-center space-x-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-3.5 py-2 rounded-xl font-bold cursor-pointer transition-all shadow-2xs"
             >
               <Unlock className="w-3.5 h-3.5 text-amber-600" />
               <span>解锁修改</span>
@@ -270,7 +275,7 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
 
           <button
             onClick={handleConfirmAndProceed}
-            className="flex items-center space-x-2 bg-black hover:bg-slate-800 text-white font-extrabold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all transform hover:scale-[1.02]"
+            className="flex items-center space-x-2 bg-gradient-to-r from-orange-500 via-amber-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white font-extrabold px-5 py-2 rounded-xl shadow-md shadow-orange-500/20 cursor-pointer transition-all transform hover:scale-[1.02]"
           >
             <Lock className="w-3.5 h-3.5 text-white" />
             <span>{isLocked ? "进入阶段三 · 分集制作室" : "🔒 确认并锁定全局资产 · 开启制作"}</span>
@@ -282,7 +287,7 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
       {/* ========================================================================================= */}
       {/* 2. ASSET HEALTH CHECK DIAGNOSTICS STRIP (智能资产健康诊断条)                                */}
       {/* ========================================================================================= */}
-      <div className="bg-[#EEF1F5] px-6 py-2.5 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2 text-xs">
+      <div className="bg-slate-50/90 px-6 py-2.5 border-b border-slate-200/80 flex items-center justify-between flex-wrap gap-2 text-xs">
         <div className="flex items-center space-x-4">
           <span className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
             <Activity className="w-3.5 h-3.5 text-purple-600" />
@@ -318,14 +323,13 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
       </div>
 
       {/* ========================================================================================= */}
-      {/* 3. FOUR CORE ASSET MODULES TAB BAR (4 大确权模块导航栏)                                    */}
+      {/* 3. THREE CORE ASSET MODULES TAB BAR (3 大核心资产确权模块导航栏)                           */}
       {/* ========================================================================================= */}
       <div className="bg-white px-6 pt-3 border-b border-slate-200 flex space-x-4 overflow-x-auto">
         {[
           { id: "characters", label: `1. 角色·三视图·服装解耦·音色卡 (${totalCharacters})`, icon: User },
           { id: "scenes", label: `2. 场景概念资产库 (${totalScenes})`, icon: ImageIcon },
-          { id: "world", label: "3. 世界观·Seedance 2.5 画风 LoRA 锁定", icon: Globe },
-          { id: "episodes", label: `4. 智能分集与黄金卡点目录 (${episodes.length})`, icon: Layers },
+          { id: "episodes", label: `3. 智能分集与黄金卡点目录 (${episodes.length})`, icon: Layers },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -734,47 +738,47 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
         )}
 
         {/* --------------------------------------------------------------------------------------- */}
-        {/* TAB 4: EPISODES BREAKDOWN & GOLDEN HOOK POINTS                                         */}
+        {/* TAB 3: EPISODES BREAKDOWN & GOLDEN HOOK POINTS & DIRECT PRODUCTION TRIGGER              */}
         {/* --------------------------------------------------------------------------------------- */}
         {activeSubTab === "episodes" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900">
-                  智能分集大纲与黄金卡点 (Golden Hook)
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-orange-500" />
+                  <span>智能分集大纲与黄金卡点 (Golden Hook)</span>
                 </h3>
                 <p className="text-xs text-slate-500">
-                  短剧按 1~3 分钟快节奏切分，中央控制层统一规划每集结尾的剧情反转与高潮悬念卡点。
+                  短剧按 1~3 分钟快节奏切分，确权每集结尾的剧情反转与高潮悬念，支持单集直达制作流水线。
                 </p>
               </div>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-1 gap-3">
               {episodes.map((ep) => {
                 const isSelected = selectedEpisode?.id === ep.id;
                 return (
                   <div
                     key={ep.id}
-                    onClick={() => onSelectEpisode(ep)}
-                    className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                    className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
                       isSelected
                         ? "bg-slate-900 text-white border-slate-900 shadow-md"
-                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-slate-300 shadow-2xs"
                     }`}
                   >
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-start md:items-center space-x-4 min-w-0 flex-1">
                       <div
-                        className={`w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-xs ${
-                          isSelected ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-700"
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 ${
+                          isSelected ? "bg-orange-500 text-white shadow-sm" : "bg-slate-100 text-slate-800 border border-slate-200"
                         }`}
                       >
                         EP{ep.episode_number}
                       </div>
-                      <div>
-                        <div className="font-bold text-xs flex items-center gap-2">
-                          <span>{ep.title}</span>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="font-bold text-xs flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-extrabold truncate">{ep.title}</span>
                           <span
-                            className={`text-[10px] px-2 py-0.2 rounded-full font-bold ${
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                               ep.status === "ready"
                                 ? isSelected
                                   ? "bg-emerald-500/30 text-emerald-300"
@@ -789,23 +793,48 @@ export const CentralControlPanel: React.FC<CentralControlPanelProps> = ({
                         </div>
                         {ep.hook_point && (
                           <div
-                            className={`text-[11px] flex items-center gap-1 mt-1 ${
-                              isSelected ? "text-orange-300" : "text-orange-600 font-medium"
+                            className={`text-xs flex items-center gap-1.5 ${
+                              isSelected ? "text-orange-300" : "text-orange-600 font-semibold"
                             }`}
                           >
-                            <Bookmark className="w-3 h-3" />
+                            <Bookmark className="w-3.5 h-3.5 shrink-0" />
                             <span>🔥 黄金卡点：{ep.hook_point}</span>
                           </div>
                         )}
+                        <p className={`text-[11px] line-clamp-1 ${isSelected ? "text-slate-400" : "text-slate-500"}`}>
+                          {ep.raw_script || "剧情冲突持续升级中..."}
+                        </p>
                       </div>
                     </div>
 
-                    <div
-                      className={`text-right text-[11px] font-semibold ${
-                        isSelected ? "text-slate-300" : "text-slate-500"
-                      }`}
-                    >
-                      {ep.storyboards?.length || 0} 个三位一体分镜
+                    <div className="flex items-center space-x-3 shrink-0 self-end md:self-center">
+                      <div
+                        className={`text-right text-[11px] font-semibold hidden sm:block ${
+                          isSelected ? "text-slate-300" : "text-slate-500"
+                        }`}
+                      >
+                        <div>{ep.storyboards?.length || 0} 个三位一体分镜</div>
+                        <div className="text-[10px] opacity-70">约 {(ep.storyboards?.length || 0) * 8} 秒时长</div>
+                      </div>
+
+                      {/* Direct trigger to Stage 3 Production for this specific episode */}
+                      <button
+                        onClick={() => {
+                          onSelectEpisode(ep);
+                          if (!isLocked) {
+                            onToggleLockAssets(true);
+                          }
+                          onProceedToTimeline();
+                        }}
+                        className={`flex items-center space-x-1.5 px-4 py-2.5 rounded-xl font-bold text-xs cursor-pointer transition-all shadow-sm ${
+                          isSelected
+                            ? "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/20"
+                            : "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20"
+                        }`}
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>进入第 {ep.episode_number} 集制作流水线 ➔</span>
+                      </button>
                     </div>
                   </div>
                 );
